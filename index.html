@@ -2,23 +2,26 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Sincronizador MundoIn v6</title>
+    <title>MundoIn — Sincronizador Maestro v7</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
-        body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
-        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;border:1px solid var(--border)}
-        input[type="file"]{margin:20px 0;width:100%;padding:10px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px}
-        button{background:var(--primary);color:white;border:none;padding:14px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%}
-        #log{margin-top:20px;font-size:0.8rem;background:black;padding:15px;border-radius:8px;max-height:250px;overflow-y:auto;color:#cbd5e1;font-family:monospace}
+        body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)}
+        h2{margin:0 0 10px;text-align:center;color:#fff}
+        p{text-align:center;color:#94a3b8;font-size:0.9rem;margin-bottom:20px}
+        input[type="file"]{width:100%;padding:12px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px;margin-bottom:20px;cursor:pointer}
+        button{background:var(--primary);color:white;border:none;padding:14px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%;font-size:1rem}
+        button:disabled{opacity:0.5;cursor:not-allowed}
+        #log{margin-top:20px;font-size:0.85rem;background:black;padding:15px;border-radius:8px;max-height:300px;overflow-y:auto;border:1px solid #1e293b;font-family:monospace}
         .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308}
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 style="margin:0">Sincronizador MundoIn v6</h2>
-        <p style="color:#94a3b8;font-size:0.85rem">Namespace confirmado: <b>custom.sucursales</b></p>
+        <h2>Sincronizador MundoIn</h2>
+        <p>Namespace: <b>custom.sucursales</b> | Formato: <b>JSON String</b></p>
         <input type="file" id="csvFile" accept=".csv" />
-        <button id="btnStart">Actualizar Ahora</button>
+        <button id="btnStart">Actualizar Inventarios Ahora</button>
         <div id="log">> Esperando archivo...</div>
     </div>
 
@@ -34,35 +37,45 @@
         }
 
         btn.onclick = async () => {
-            const file = document.getElementById('csvFile').files[0];
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
             if(!file) return alert("Selecciona un CSV");
+            
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Procesando...", "yellow");
+            addLog("Leyendo archivo CSV...", "yellow");
 
             try {
                 const text = await file.text();
-                const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+                // Limpieza profunda de caracteres invisibles y saltos de línea
+                const cleanText = text.replace(/\uFEFF/g, '').trim(); 
+                const lines = cleanText.split(/\r?\n/).filter(l => l.trim() !== '');
+                
+                if (lines.length < 2) throw new Error("El archivo está vacío o mal formado");
+
                 const headers = lines[0].split(',').map(h => h.trim());
                 const rows = lines.slice(1);
-                const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
-                
+                const webIdx = headers.findIndex(h => h.toUpperCase() === 'WEB');
+
+                if (webIdx === -1) throw new Error("No encontré la columna 'WEB'");
+
                 const productos = {};
 
+                // 1. AGRUPAR VARIANTES
                 rows.forEach(line => {
-                    const row = line.split(',');
+                    const row = line.split(',').map(c => c.trim());
                     if (row.length < webIdx) return;
-                    const id = row[0]?.trim();
-                    const handle = row[1]?.trim();
+                    
+                    const id = row[0];
+                    const handle = row[1];
                     const key = handle || id;
 
                     if (!productos[key]) {
                         const sList = [];
                         for (let i = webIdx; i < headers.length; i++) {
-                            // Generamos los nombres y el formato de mapa igual al tuyo
                             sList.push({ 
-                                nombre: headers[i].trim(), 
-                                mapa: `http://googleusercontent.com/maps.google.com/${i - webIdx}` 
+                                nombre: headers[i], 
+                                mapa: `https://www.google.com/maps/search/${encodeURIComponent(headers[i])}` 
                             });
                         }
                         productos[key] = { id, handle, sucursales: sList, variantes: [] };
@@ -70,23 +83,24 @@
 
                     const cantidades = [];
                     for (let i = webIdx; i < headers.length; i++) {
-                        cantidades.push(parseInt(row[i]?.replace(/[^0-9]/g, '') || 0));
+                        const val = parseInt(row[i].replace(/[^0-9]/g, '') || 0);
+                        cantidades.push(val);
                     }
 
                     productos[key].variantes.push({
                         opciones: [
-                            { nombre: "Tamaño", valor: row[4]?.trim() || "" },
-                            { nombre: "Color", valor: row[6]?.trim() || "" }
+                            { nombre: "Tamaño", valor: row[4] || "" },
+                            { nombre: "Color", valor: row[6] || "" }
                         ],
                         cantidades: cantidades
                     });
                 });
 
+                // 2. ENVIAR A SHOPIFY
                 for (const key in productos) {
                     const p = productos[key];
-                    const isRealId = p.id && p.id.length > 12 && /^\d+$/.test(p.id);
+                    const isRealId = p.id && p.id.length > 12;
                     
-                    // ESTRUCTURA EXACTA QUE ME PASASTE
                     const finalPayload = {
                         sucursales: {
                             sucursales: p.sucursales,
@@ -103,19 +117,23 @@
                         body: JSON.stringify({
                             handle: p.handle,
                             product_id: isRealId ? p.id : null,
-                            value: JSON.stringify(finalPayload) // IMPORTANTE: Enviado como String
+                            value: JSON.stringify(finalPayload) // Formato JSON String
                         })
                     });
 
                     const data = await res.json();
-                    if(data.ok) addLog(`✓ ${p.handle}: Sincronizado`, "green");
-                    else addLog(`✗ ${p.handle}: ${data.error}`, "red");
+                    if(data.ok) addLog(`✓ ${p.handle}: Actualizado con éxito`, "green");
+                    else addLog(`✗ ${p.handle}: ${data.error || 'Error desconocido'}`, "red");
+                    
+                    await new Promise(r => setTimeout(r, 500)); 
                 }
-                addLog("--- TERMINADO ---", "green");
+                addLog("--- PROCESO TERMINADO ---", "green");
+
             } catch (e) {
                 addLog("Error: " + e.message, "red");
+            } finally {
+                btn.disabled = false;
             }
-            btn.disabled = false;
         };
     </script>
 </body>
