@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>MundoIn Sincronizador v3</title>
+    <title>MundoIn Sincronizador v4</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
         body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
@@ -15,8 +15,8 @@
 </head>
 <body>
     <div class="card">
-        <h2 style="margin:0 0 10px">Sincronizador MundoIn</h2>
-        <p style="color:#94a3b8;font-size:0.85rem">Actualización masiva de stock por sucursales.</p>
+        <h2 style="margin:0">Sincronizador MundoIn</h2>
+        <p style="color:#94a3b8;font-size:0.85rem">Versión de compatibilidad total (Stringify Force).</p>
         <input type="file" id="csvFile" accept=".csv" />
         <button id="btnStart">Actualizar Ahora</button>
         <div id="log">> Esperando archivo...</div>
@@ -36,43 +36,37 @@
         btn.onclick = async () => {
             const file = document.getElementById('csvFile').files[0];
             if(!file) return alert("Selecciona un CSV");
-            
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Leyendo CSV...", "yellow");
+            addLog("Leyendo archivo...", "yellow");
 
             try {
                 const text = await file.text();
                 const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
                 const headers = lines[0].split(',').map(h => h.trim());
                 const rows = lines.slice(1);
-                
                 const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
+                
                 const productos = {};
 
                 rows.forEach(line => {
                     const row = line.split(',');
                     if (row.length < webIdx) return;
-                    
                     const id = row[0]?.trim();
                     const handle = row[1]?.trim();
                     const key = handle || id;
 
                     if (!productos[key]) {
-                        const sucursalesList = [];
+                        const sList = [];
                         for (let i = webIdx; i < headers.length; i++) {
-                            sucursalesList.push({
-                                nombre: headers[i].trim(),
-                                mapa: `http://googleusercontent.com/maps.google.com/${i - webIdx}`
-                            });
+                            sList.push({ nombre: headers[i].trim(), mapa: `https://maps.google.com/?q=${headers[i].trim()}` });
                         }
-                        productos[key] = { id, handle, sucursales: sucursalesList, variantes: [] };
+                        productos[key] = { id, handle, sucursales: sList, variantes: [] };
                     }
 
                     const cantidades = [];
                     for (let i = webIdx; i < headers.length; i++) {
-                        const val = parseInt(row[i]?.replace(/[^0-9]/g, '') || 0);
-                        cantidades.push(val);
+                        cantidades.push(parseInt(row[i]?.replace(/[^0-9]/g, '') || 0));
                     }
 
                     productos[key].variantes.push({
@@ -88,32 +82,34 @@
                     const p = productos[key];
                     const isRealId = p.id && p.id.length > 12 && /^\d+$/.test(p.id);
                     
-                    // ESTRUCTURA EXACTA SEGÚN TU JSON DE REFERENCIA
-                    const finalData = {
+                    // ESTRUCTURA EXACTA SEGÚN TU JSON
+                    const rawJson = {
                         sucursales: {
                             sucursales: p.sucursales,
                             variantes: p.variantes
                         }
                     };
 
-                    addLog(`Enviando ${p.handle}...`, "yellow");
+                    addLog(`Sincronizando ${p.handle}...`, "yellow");
 
                     const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
+                    
                     const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             handle: p.handle,
                             product_id: isRealId ? p.id : null,
-                            value: finalData // Enviamos como objeto, el backend se encarga del resto
+                            // ENVIAMOS EL JSON COMO STRING (Shopify Requirement)
+                            value: JSON.stringify(rawJson) 
                         })
                     });
 
                     const data = await res.json();
-                    if(data.ok) addLog(`✓ ${p.handle}: Éxito (${p.variantes.length} var.)`, "green");
+                    if(data.ok) addLog(`✓ ${p.handle}: Actualizado OK`, "green");
                     else addLog(`✗ ${p.handle}: ${data.error}`, "red");
                 }
-                addLog("--- FIN DEL PROCESO ---", "green");
+                addLog("--- PROCESO TERMINADO ---", "green");
             } catch (e) {
                 addLog("Error: " + e.message, "red");
             }
