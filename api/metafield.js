@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   try {
     const { product_id, value } = req.body;
     
-    // --- USA EL HOST QUE CORRESPONDA AL TOKEN ---
-    const host = 'mundo-jm-test.myshopify.com'; 
+    // --- TIENDA REAL ---
+    const host = 'mundo-in.myshopify.com'; 
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
 
     const gid = `gid://shopify/Product/${product_id.trim()}`;
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const mutation = `mutation m($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
         metafields { id }
-        userErrors { message }
+        userErrors { field message }
       }
     }`;
 
@@ -38,9 +38,12 @@ export default async function handler(req, res) {
     });
 
     const result = await response.json();
+
     if (result.data?.metafieldsSet?.userErrors?.length > 0) {
+      console.error("ERROR REAL:", result.data.metafieldsSet.userErrors);
       return res.status(400).json({ ok: false, error: result.data.metafieldsSet.userErrors[0].message });
     }
+
     return res.status(200).json({ ok: true });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
