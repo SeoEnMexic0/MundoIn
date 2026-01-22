@@ -8,29 +8,42 @@ export default async function handler(req, res) {
   try {
     const { product_id, value } = req.body;
     
-    // CAMBIA ESTO por tu dominio real de .myshopify.com
-    // Ejemplo: 'mundo-in.myshopify.com'
+    // ASEGÚRATE DE QUE ESTE SEA TU DOMINIO REAL
     const host = 'mundo-jm-test.myshopify.com'; 
-    
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
     const version = '2024-07';
 
     if (!token) throw new Error("Token no configurado en Vercel");
-    if (!product_id) throw new Error("Falta el product_id");
+    if (!product_id) throw new Error("Falta el ID del producto en el CSV");
 
     const gid = `gid://shopify/Product/${product_id}`;
     const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
-    // Aseguramos que el valor sea un String JSON puro
-    const stringValue = typeof value === 'object' ? JSON.stringify(value) : value;
+    // Shopify requiere que el valor de un metacampo JSON sea enviado como STRING
+    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
 
-    const mutation = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
+    const mutation = `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            namespace
+            key
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
     const variables = {
-      m: [{ 
-        ownerId: gid, 
-        namespace: 'custom', 
-        key: 'sucursales', 
-        type: 'json', 
+      metafields: [{
+        ownerId: gid,
+        namespace: "custom",
+        key: "sucursales",
+        type: "json",
         value: stringValue
       }]
     };
@@ -46,12 +59,14 @@ export default async function handler(req, res) {
 
     const result = await response.json();
 
-    // Verificamos si Shopify devolvió errores de usuario
+    // Si hay errores de Shopify, los capturamos aquí
     if (result.data?.metafieldsSet?.userErrors?.length > 0) {
-        return res.status(400).json({ 
-            ok: false, 
-            error: result.data.metafieldsSet.userErrors[0].message 
-        });
+      const errorMsg = result.data.metafieldsSet.userErrors[0].message;
+      return res.status(400).json({ ok: false, error: errorMsg });
+    }
+
+    if (result.errors) {
+      return res.status(400).json({ ok: false, error: result.errors[0].message });
     }
 
     return res.status(200).json({ ok: true, result });
