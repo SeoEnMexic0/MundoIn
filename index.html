@@ -2,27 +2,27 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>MundoIn — Sincronizador Maestro v7</title>
+    <title>MundoIn — Sincronizador Maestro v8</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
         body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
         .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)}
         h2{margin:0 0 10px;text-align:center;color:#fff}
         p{text-align:center;color:#94a3b8;font-size:0.9rem;margin-bottom:20px}
-        input[type="file"]{width:100%;padding:12px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px;margin-bottom:20px;cursor:pointer}
+        input[type="file"]{width:100%;padding:12px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px;margin-bottom:20px}
         button{background:var(--primary);color:white;border:none;padding:14px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%;font-size:1rem}
         button:disabled{opacity:0.5;cursor:not-allowed}
-        #log{margin-top:20px;font-size:0.85rem;background:black;padding:15px;border-radius:8px;max-height:300px;overflow-y:auto;border:1px solid #1e293b;font-family:monospace}
-        .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308}
+        #log{margin-top:20px;font-size:0.85rem;background:black;padding:15px;border-radius:8px;max-height:350px;overflow-y:auto;border:1px solid #1e293b;font-family:monospace}
+        .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308} .blue{color:#3b82f6}
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Sincronizador MundoIn</h2>
-        <p>Namespace: <b>custom.sucursales</b> | Formato: <b>JSON String</b></p>
+        <h2>Sincronizador MundoIn v8</h2>
+        <p>Enviando a: <b>custom.sucursales</b></p>
         <input type="file" id="csvFile" accept=".csv" />
-        <button id="btnStart">Actualizar Inventarios Ahora</button>
-        <div id="log">> Esperando archivo...</div>
+        <button id="btnStart">Iniciar Sincronización</button>
+        <div id="log">> Esperando archivo CSV...</div>
     </div>
 
     <script>
@@ -32,37 +32,36 @@
         function addLog(msg, color='') {
             const div = document.createElement('div');
             div.className = color;
+            div.style.marginBottom = '5px';
             div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
             log.prepend(div);
         }
 
         btn.onclick = async () => {
-            const fileInput = document.getElementById('csvFile');
-            const file = fileInput.files[0];
-            if(!file) return alert("Selecciona un CSV");
+            const file = document.getElementById('csvFile').files[0];
+            if(!file) return alert("Por favor selecciona un archivo .csv");
             
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Leyendo archivo CSV...", "yellow");
+            addLog("Iniciando lectura del archivo...", "blue");
 
             try {
                 const text = await file.text();
-                // Limpieza profunda de caracteres invisibles y saltos de línea
                 const cleanText = text.replace(/\uFEFF/g, '').trim(); 
                 const lines = cleanText.split(/\r?\n/).filter(l => l.trim() !== '');
                 
-                if (lines.length < 2) throw new Error("El archivo está vacío o mal formado");
+                if (lines.length < 2) throw new Error("El archivo está vacío o tiene un formato incorrecto.");
 
                 const headers = lines[0].split(',').map(h => h.trim());
                 const rows = lines.slice(1);
                 const webIdx = headers.findIndex(h => h.toUpperCase() === 'WEB');
 
-                if (webIdx === -1) throw new Error("No encontré la columna 'WEB'");
+                if (webIdx === -1) throw new Error("No se encontró la columna 'WEB' en el CSV.");
 
                 const productos = {};
 
-                // 1. AGRUPAR VARIANTES
-                rows.forEach(line => {
+                // 1. Agrupar variantes por Handle
+                rows.forEach((line, idx) => {
                     const row = line.split(',').map(c => c.trim());
                     if (row.length < webIdx) return;
                     
@@ -96,7 +95,10 @@
                     });
                 });
 
-                // 2. ENVIAR A SHOPIFY
+                const total = Object.keys(productos).length;
+                addLog(`Archivo procesado. Enviando ${total} productos...`, "yellow");
+
+                // 2. Enviar a la API
                 for (const key in productos) {
                     const p = productos[key];
                     const isRealId = p.id && p.id.length > 12;
@@ -108,29 +110,41 @@
                         }
                     };
 
-                    addLog(`Enviando ${p.handle}...`, "yellow");
+                    addLog(`Conectando con Shopify para: ${p.handle}...`, "blue");
 
                     const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
-                    const res = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            handle: p.handle,
-                            product_id: isRealId ? p.id : null,
-                            value: JSON.stringify(finalPayload) // Formato JSON String
-                        })
-                    });
-
-                    const data = await res.json();
-                    if(data.ok) addLog(`✓ ${p.handle}: Actualizado con éxito`, "green");
-                    else addLog(`✗ ${p.handle}: ${data.error || 'Error desconocido'}`, "red");
                     
-                    await new Promise(r => setTimeout(r, 500)); 
+                    try {
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                handle: p.handle,
+                                product_id: isRealId ? p.id : null,
+                                value: JSON.stringify(finalPayload)
+                            })
+                        });
+
+                        // Verificamos si la respuesta es exitosa (200 OK)
+                        if (response.ok) {
+                            const data = await response.json();
+                            addLog(`✓ ${p.handle}: Sincronizado correctamente.`, "green");
+                        } else {
+                            const errorText = await response.text();
+                            addLog(`✗ ${p.handle}: Error del servidor (${response.status})`, "red");
+                            console.error("Error detalle:", errorText);
+                        }
+                    } catch (fetchErr) {
+                        addLog(`✗ ${p.handle}: Error de conexión: ${fetchErr.message}`, "red");
+                    }
+                    
+                    await new Promise(r => setTimeout(r, 600)); 
                 }
-                addLog("--- PROCESO TERMINADO ---", "green");
+                addLog("--- SINCRONIZACIÓN FINALIZADA ---", "green");
 
             } catch (e) {
-                addLog("Error: " + e.message, "red");
+                addLog("ERROR CRÍTICO: " + e.message, "red");
+                console.error(e);
             } finally {
                 btn.disabled = false;
             }
