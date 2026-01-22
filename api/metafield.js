@@ -8,32 +8,25 @@ export default async function handler(req, res) {
   try {
     const { product_id, value } = req.body;
     
-    // ASEGÚRATE DE QUE ESTE SEA TU DOMINIO REAL
-    const host = 'mundo-jm-test.myshopify.com'; 
+    // ESTE ES TU DOMINIO REAL DE SHOPIFY
+    const host = 'mundo-in.myshopify.com'; 
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
     const version = '2024-07';
 
     if (!token) throw new Error("Token no configurado en Vercel");
-    if (!product_id) throw new Error("Falta el ID del producto en el CSV");
+    if (!product_id) throw new Error("Falta el ID del producto");
 
     const gid = `gid://shopify/Product/${product_id}`;
     const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
-    // Shopify requiere que el valor de un metacampo JSON sea enviado como STRING
+    // Convertimos el valor a string para que Shopify lo acepte como JSON
     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
 
     const mutation = `
       mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
-          metafields {
-            id
-            namespace
-            key
-          }
-          userErrors {
-            field
-            message
-          }
+          metafields { id }
+          userErrors { field message }
         }
       }
     `;
@@ -59,14 +52,12 @@ export default async function handler(req, res) {
 
     const result = await response.json();
 
-    // Si hay errores de Shopify, los capturamos aquí
-    if (result.data?.metafieldsSet?.userErrors?.length > 0) {
-      const errorMsg = result.data.metafieldsSet.userErrors[0].message;
-      return res.status(400).json({ ok: false, error: errorMsg });
-    }
-
     if (result.errors) {
       return res.status(400).json({ ok: false, error: result.errors[0].message });
+    }
+
+    if (result.data?.metafieldsSet?.userErrors?.length > 0) {
+      return res.status(400).json({ ok: false, error: result.data.metafieldsSet.userErrors[0].message });
     }
 
     return res.status(200).json({ ok: true, result });
