@@ -3,163 +3,159 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MundoIn — Actualizador de Sucursales</title>
+    <title>MundoIn — Sincronizador Masivo</title>
     <style>
       :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; --primary:#22c55e; --border:#1f2937; }
       *{box-sizing:border-box}
       body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 800px at 80% -200px,#1e293b 20%,transparent 60%),var(--bg);color:var(--text);min-height:100vh;display:grid;align-items:start}
-      .container{width:100%;max-width:720px;margin:3rem auto;padding:0 1rem}
-      .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:16px;padding:1.25rem;box-shadow:0 20px 40px rgba(0,0,0,.35)}
-      h1{font-size:1.5rem;margin:0 0 .5rem}
-      p.desc{color:var(--muted);margin:0 0 1rem}
-      label{display:block;font-weight:600;margin-bottom:.5rem}
+      .container{width:100%;max-width:800px;margin:3rem auto;padding:0 1rem}
+      .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:16px;padding:1.5rem;box-shadow:0 20px 40px rgba(0,0,0,.35)}
+      h1{font-size:1.5rem;margin:0 0 .5rem;color:#fff}
+      .desc{color:var(--muted);margin-bottom:1.5rem}
       .file-row{display:grid;grid-template-columns:1fr auto;gap:.75rem;align-items:center}
-      input[type="file"]{width:100%;padding:.75rem;border-radius:12px;border:1px dashed var(--border);background:#0b1220;color:var(--text)}
-      .hidden{display:none}
-      button{appearance:none;border:none;border-radius:12px;padding:.75rem 1rem;background:linear-gradient(180deg,var(--primary),#16a34a);color:#fff;font-weight:600;cursor:pointer}
-      button:disabled{opacity:.6;cursor:not-allowed}
-      .note{border-left:3px solid var(--primary);padding:.75rem;background:#0b1220;border-radius:8px;color:var(--muted);margin-top:1rem;font-size:0.9rem}
-      .progress-bar{width:100%;height:8px;background:var(--border);border-radius:4px;margin:.5rem 0;overflow:hidden}
-      .progress-fill{height:100%;background:#22c55e;transition:width .3s}
-      .result-item{margin:.25rem 0;padding:.25rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
-      .result-error{color:#ef4444}
-      .summary-box{margin-top:1rem;padding:.75rem;background:var(--border);border-radius:8px;font-weight:bold}
+      input[type="file"]{width:100%;padding:.75rem;border-radius:12px;border:1px dashed var(--border);background:#0b1220;color:var(--text);cursor:pointer}
+      button{border:none;border-radius:12px;padding:.75rem 1.5rem;background:linear-gradient(180deg,var(--primary),#16a34a);color:#fff;font-weight:600;cursor:pointer;transition:all .2s}
+      button:disabled{opacity:.5;cursor:not-allowed}
+      .progress-container{margin-top:1.5rem}
+      .progress-bar{width:100%;height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:.5rem}
+      .progress-fill{height:100%;background:#22c55e;width:0%;transition:width 0.3s}
+      #statusText{font-size:0.9rem;color:var(--muted)}
+      .results-area{margin-top:1.5rem;max-height:300px;overflow-y:auto;background:#0b1220;border-radius:12px;padding:1rem;border:1px solid var(--border)}
+      .res-item{font-size:0.85rem;padding:.4rem 0;border-bottom:1px solid #1f2937;display:flex;justify-content:space-between}
+      .ok{color:#22c55e} .err{color:#ef4444}
+      .note{margin-top:1rem;padding:.75rem;background:rgba(34,197,94,0.1);border-left:3px solid var(--primary);border-radius:4px;font-size:0.85rem;color:var(--muted)}
     </style>
   </head>
   <body>
     <main class="container">
-      <section class="card">
-        <h1>Actualizar Sucursales (CSV)</h1>
-        <p class="desc">Sube el archivo para sincronizar inventarios en Shopify.</p>
+      <div class="card">
+        <h1>Actualización Masiva de Inventarios</h1>
+        <p class="desc">Sincroniza los metafields de sucursales en Shopify usando tu archivo CSV.</p>
 
-        <form id="csv-form">
-          <label for="csvFile">Archivo de Inventario</label>
+        <form id="uploadForm">
+          <label style="display:block;margin-bottom:.5rem;font-weight:600">Selecciona tu CSV</label>
           <div class="file-row">
-            <input id="csvFile" type="file" accept=".csv" required />
-            <button type="submit" id="submitBtn" disabled>Continuar</button>
+            <input type="file" id="csvFile" accept=".csv" required />
+            <button type="submit" id="btnSubmit" disabled>Iniciar Proceso</button>
           </div>
-          <div id="fileInfo" class="file-info hidden"></div>
-          <div id="csvProgress" class="hidden"></div>
-          <div id="csvResults" class="hidden"></div>
         </form>
-        <div class="note">Conectado a: <b>mundo-jm-test.myshopify.com</b></div>
-      </section>
+
+        <div id="progressArea" class="progress-container hidden">
+          <div id="statusText">Preparando archivos...</div>
+          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        </div>
+
+        <div id="resultsArea" class="results-area hidden"></div>
+
+        <div class="note">
+          Host destino: <b>mundo-jm-test.myshopify.com</b><br>
+          Asegúrate de que la columna de sucursales comience con la palabra <b>WEB</b>.
+        </div>
+      </div>
     </main>
 
     <script>
-      const TOP_KEY = 'sucursales';
-      const input = document.getElementById('csvFile');
-      const btn = document.getElementById('submitBtn');
+      const fileInput = document.getElementById('csvFile');
+      const btnSubmit = document.getElementById('btnSubmit');
+      const resultsArea = document.getElementById('resultsArea');
+      const progressFill = document.getElementById('progressFill');
+      const statusText = document.getElementById('statusText');
 
-      // 1. Parsear CSV a Filas
-      function parseCSV(text) {
-        return text.split('\n').filter(line => line.trim() !== '').map(line => line.split(','));
-      }
+      fileInput.addEventListener('change', () => btnSubmit.disabled = !fileInput.files.length);
 
-      // 2. Normalizar IDs
-      function normalizeProductId(id) {
-        const s = String(id || '').trim();
-        const m = s.match(/\d+$/);
-        return m ? m[0] : s;
-      }
+      // Función para procesar la fila del CSV y convertirla al JSON de Shopify
+      function rowToShopifyJson(row, headers) {
+        const startIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
+        if (startIdx === -1) throw new Error("No se encontró la columna 'WEB'");
 
-      // 3. Llamadas al Backend (API)
-      async function pushByHandle({ handle, data }) {
-        const res = await fetch('/api/metafield_by_handle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ handle, value: { [TOP_KEY]: data } })
-        });
-        return await res.json();
-      }
-
-      async function pushById({ productId, data }) {
-        const res = await fetch('/api/metafield', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id: normalizeProductId(productId), value: { [TOP_KEY]: data } })
-        });
-        return await res.json();
-      }
-
-      // 4. Transformar datos (Estructura de Sucursales)
-      function buildProductData(row, headers) {
-        const startIdx = 12; // Columna M
         const sucursales = [];
         const cantidades = [];
         
+        // Extraemos sucursales dinámicamente
         for (let c = startIdx; c < headers.length; c++) {
           const nombre = headers[c].trim();
           if (!nombre) continue;
           sucursales.push({ nombre, mapa: "" });
-          const val = row[c] ? parseInt(row[c].replace(/[^0-9]/g, '')) : 0;
+          const val = row[c] ? parseInt(row[c].toString().replace(/[^0-9]/g, '')) : 0;
           cantidades.push(isNaN(val) ? 0 : val);
         }
 
         return {
           sucursales,
-          variantes: [{ opciones: [], cantidades }]
+          variantes: [{
+            opciones: [
+              { nombre: headers[3] || "Tamaño", valor: row[4] || "" },
+              { nombre: headers[5] || "Color", valor: row[6] || "" }
+            ],
+            cantidades
+          }]
         };
       }
 
-      // 5. Eventos de UI
-      input.addEventListener('change', () => {
-        btn.disabled = !input.files.length;
-      });
-
-      document.getElementById('csv-form').addEventListener('submit', async (e) => {
+      document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const file = input.files[0];
-        btn.disabled = true;
-
-        const csvProgress = document.getElementById('csvProgress');
-        const csvResults = document.getElementById('csvResults');
-        csvProgress.classList.remove('hidden');
-        csvResults.classList.remove('hidden');
-        csvResults.innerHTML = "Procesando...";
+        const file = fileInput.files[0];
+        btnSubmit.disabled = true;
+        
+        document.getElementById('progressArea').classList.remove('hidden');
+        resultsArea.classList.remove('hidden');
+        resultsArea.innerHTML = '';
 
         try {
           const text = await file.text();
-          const rows = parseCSV(text);
-          const headers = rows[0];
-          const results = [];
+          const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+          const headers = lines[0].split(',');
+          const total = lines.length - 1;
 
-          csvProgress.innerHTML = `<div class="progress-bar"><div class="progress-fill" id="fill" style="width:0%"></div></div>`;
-          const fill = document.getElementById('fill');
-
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const id = row[0];
-            const handle = row[1]?.trim().toLowerCase();
-            const data = buildProductData(row, headers);
+          for (let i = 1; i < lines.length; i++) {
+            const row = lines[i].split(',');
+            const id = row[0]?.trim();
+            const handle = row[1]?.trim();
+            
+            statusText.textContent = `Procesando ${i} de ${total}: ${handle || id}`;
+            const percent = (i / total) * 100;
+            progressFill.style.width = percent + '%';
 
             try {
-              let r;
-              if (id && id.length > 5) {
-                r = await pushById({ productId: id, data });
-              } else if (handle) {
-                r = await pushByHandle({ handle, data });
-              }
-              results.push({ ok: true, item: handle || id });
+              const jsonData = rowToShopifyJson(row, headers);
+              
+              // Intentamos por ID (columna A), si no por Handle (columna B)
+              const endpoint = (id && id.length > 5) ? '/api/metafield' : '/api/metafield_by_handle';
+              const body = (id && id.length > 5) 
+                ? { product_id: id, value: { sucursales: jsonData } }
+                : { handle: handle, value: { sucursales: jsonData } };
+
+              const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+
+              const data = await res.json();
+              
+              const div = document.createElement('div');
+              div.className = 'res-item';
+              div.innerHTML = `<span>${handle || id}</span> <span class="${data.ok ? 'ok' : 'err'}">${data.ok ? '✓ Actualizado' : '✗ Falló'}</span>`;
+              resultsArea.prepend(div);
+
             } catch (err) {
-              results.push({ ok: false, item: handle || id, error: err.message });
+              const div = document.createElement('div');
+              div.className = 'res-item err';
+              div.textContent = `✗ ${handle || id}: ${err.message}`;
+              resultsArea.prepend(div);
             }
-
-            fill.style.width = `${(i / (rows.length - 1)) * 100}%`;
+            
+            // Pequeña pausa para no saturar la API
+            await new Promise(r => setTimeout(r, 200));
           }
-
-          const fails = results.filter(r => !r.ok);
-          csvResults.innerHTML = `
-            <div class="summary-box">
-              Finalizado: ${results.length - fails.length} OK, ${fails.length} Errores.
-            </div>
-            ${fails.map(f => `<div class="result-item result-error">✗ ${f.item}: ${f.error}</div>`).join('')}
-          `;
+          
+          statusText.textContent = "¡Proceso masivo completado!";
+          alert("Sincronización finalizada.");
 
         } catch (err) {
-          alert("Error crítico: " + err.message);
+          alert("Error al leer el CSV: " + err.message);
         } finally {
-          btn.disabled = false;
+          btnSubmit.disabled = false;
         }
       });
     </script>
