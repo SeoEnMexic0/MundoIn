@@ -7,18 +7,13 @@ export default async function handler(req, res) {
 
   try {
     const { handle, value } = req.body;
+    const host = 'mundo-jm-test.myshopify.com';
+    const token = process.env.SHOPIFY_ADMIN_TOKEN;
+
+    const gqlUrl = `https://${host}/admin/api/2024-07/graphql.json`;
     
-    // CONFIGURACIÓN FORZADA (El secreto del éxito)
-    const host = 'mundo-jm-test.myshopify.com'; 
-    const token = process.env.SHOPIFY_ADMIN_TOKEN; // Configurado en Vercel
-    const version = '2024-07';
-
-    if (!token) return res.status(500).json({ ok: false, error: "Token no configurado" });
-
-    // 1. Buscar producto por handle
-    const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
+    // Paso 1: Buscar GID por Handle
     const findQuery = `query($h:String!){productByHandle(handle:$h){id}}`;
-    
     const findRes = await fetch(gqlUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
@@ -28,9 +23,9 @@ export default async function handler(req, res) {
     const findResult = await findRes.json();
     const gid = findResult?.data?.productByHandle?.id;
 
-    if (!gid) return res.status(404).json({ ok: false, error: 'Producto no encontrado', handle });
+    if (!gid) return res.status(404).json({ ok: false, error: 'Handle no encontrado' });
 
-    // 2. Actualizar Metafield
+    // Paso 2: Actualizar Metafield
     const mutation = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
     const variables = {
       m: [{ 
@@ -49,10 +44,6 @@ export default async function handler(req, res) {
     });
 
     const result = await response.json();
-    const errors = result?.data?.metafieldsSet?.userErrors || [];
-
-    if (errors.length > 0) return res.status(422).json({ ok: false, error: errors[0].message });
-
     return res.status(200).json({ ok: true, gid });
 
   } catch (error) {
