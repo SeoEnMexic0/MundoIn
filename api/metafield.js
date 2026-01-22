@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // Configuración de CORS para permitir que tu index.html hable con la API
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,25 +9,35 @@ export default async function handler(req, res) {
   try {
     const { product_id, value } = req.body;
     
-    // ESTE ES TU DOMINIO REAL DE SHOPIFY
+    // --- CONFIGURACIÓN DE TU TIENDA REAL ---
     const host = 'mundo-in.myshopify.com'; 
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
     const version = '2024-07';
 
-    if (!token) throw new Error("Token no configurado en Vercel");
-    if (!product_id) throw new Error("Falta el ID del producto");
+    // Validaciones básicas
+    if (!token) throw new Error("Token no configurado en las variables de entorno de Vercel");
+    if (!product_id) throw new Error("Falta el product_id en la petición");
 
+    // Construcción del ID global de Shopify (GID)
     const gid = `gid://shopify/Product/${product_id}`;
     const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
-    // Convertimos el valor a string para que Shopify lo acepte como JSON
-    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+    // Shopify requiere que el valor de un metacampo JSON se envíe como un String (texto)
+    const stringValue = typeof value === 'object' ? JSON.stringify(value) : value;
 
+    // Mutación GraphQL para insertar o actualizar metacampos
     const mutation = `
       mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
-          metafields { id }
-          userErrors { field message }
+          metafields {
+            id
+            namespace
+            key
+          }
+          userErrors {
+            field
+            message
+          }
         }
       }
     `;
@@ -34,9 +45,9 @@ export default async function handler(req, res) {
     const variables = {
       metafields: [{
         ownerId: gid,
-        namespace: "custom",
-        key: "sucursales",
-        type: "json",
+        namespace: "custom", // Tu namespace confirmado
+        key: "sucursales",   // Tu clave confirmada
+        type: "json",        // Tipo de dato JSON
         value: stringValue
       }]
     };
@@ -52,17 +63,21 @@ export default async function handler(req, res) {
 
     const result = await response.json();
 
+    // Manejo de errores específicos de la API de Shopify
     if (result.errors) {
       return res.status(400).json({ ok: false, error: result.errors[0].message });
     }
 
     if (result.data?.metafieldsSet?.userErrors?.length > 0) {
-      return res.status(400).json({ ok: false, error: result.data.metafieldsSet.userErrors[0].message });
+      const errorMsg = result.data.metafieldsSet.userErrors[0].message;
+      return res.status(400).json({ ok: false, error: errorMsg });
     }
 
+    // Si todo sale bien, devolvemos éxito
     return res.status(200).json({ ok: true, result });
 
   } catch (error) {
+    console.error("Error en el servidor:", error.message);
     return res.status(500).json({ ok: false, error: error.message });
   }
 }
