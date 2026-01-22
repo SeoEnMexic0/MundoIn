@@ -23,33 +23,32 @@
       .results-area{margin-top:1.5rem;max-height:300px;overflow-y:auto;background:#0b1220;border-radius:12px;padding:1rem;border:1px solid var(--border)}
       .res-item{font-size:0.85rem;padding:.4rem 0;border-bottom:1px solid #1f2937;display:flex;justify-content:space-between}
       .ok{color:#22c55e} .err{color:#ef4444}
-      .note{margin-top:1rem;padding:.75rem;background:rgba(34,197,94,0.1);border-left:3px solid var(--primary);border-radius:4px;font-size:0.85rem;color:var(--muted)}
+      .note{margin-top:1rem;padding:.75rem;background:rgba(34,197,94,0.05);border-left:3px solid var(--primary);border-radius:4px;font-size:0.85rem;color:var(--muted)}
     </style>
   </head>
   <body>
     <main class="container">
       <div class="card">
-        <h1>Actualización Masiva de Inventarios</h1>
-        <p class="desc">Sincroniza los metafields de sucursales en Shopify usando tu archivo CSV.</p>
+        <h1>Sincronización de Inventarios</h1>
+        <p class="desc">Actualiza sucursales en <b>mundo-jm-test.myshopify.com</b> de forma masiva.</p>
 
         <form id="uploadForm">
-          <label style="display:block;margin-bottom:.5rem;font-weight:600">Selecciona tu CSV</label>
+          <label style="display:block;margin-bottom:.5rem;font-weight:600">Archivo CSV de Productos</label>
           <div class="file-row">
             <input type="file" id="csvFile" accept=".csv" required />
-            <button type="submit" id="btnSubmit" disabled>Iniciar Proceso</button>
+            <button type="submit" id="btnSubmit" disabled>Actualizar Tienda</button>
           </div>
         </form>
 
         <div id="progressArea" class="progress-container hidden">
-          <div id="statusText">Preparando archivos...</div>
+          <div id="statusText">Leyendo CSV...</div>
           <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
         </div>
 
         <div id="resultsArea" class="results-area hidden"></div>
 
         <div class="note">
-          Host destino: <b>mundo-jm-test.myshopify.com</b><br>
-          Asegúrate de que la columna de sucursales comience con la palabra <b>WEB</b>.
+          <b>Tip:</b> Si el ID de la Columna A no es válido, el sistema usará el Handle (Columna B) para encontrar el producto.
         </div>
       </div>
     </main>
@@ -63,15 +62,13 @@
 
       fileInput.addEventListener('change', () => btnSubmit.disabled = !fileInput.files.length);
 
-      // Función para procesar la fila del CSV y convertirla al JSON de Shopify
       function rowToShopifyJson(row, headers) {
         const startIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
-        if (startIdx === -1) throw new Error("No se encontró la columna 'WEB'");
+        if (startIdx === -1) throw new Error("No se detectó la columna 'WEB'");
 
         const sucursales = [];
         const cantidades = [];
         
-        // Extraemos sucursales dinámicamente
         for (let c = startIdx; c < headers.length; c++) {
           const nombre = headers[c].trim();
           if (!nombre) continue;
@@ -104,24 +101,28 @@
         try {
           const text = await file.text();
           const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-          const headers = lines[0].split(',');
+          const headers = lines[0].split(',').map(h => h.trim());
           const total = lines.length - 1;
 
           for (let i = 1; i < lines.length; i++) {
             const row = lines[i].split(',');
+            if (row.length < 2) continue;
+
             const id = row[0]?.trim();
             const handle = row[1]?.trim();
             
-            statusText.textContent = `Procesando ${i} de ${total}: ${handle || id}`;
-            const percent = (i / total) * 100;
-            progressFill.style.width = percent + '%';
+            // VALIDACIÓN DE ID: Shopify IDs son solo números y largos (13+ dígitos)
+            const isRealShopifyId = id && id.length >= 13 && /^\d+$/.test(id);
+
+            statusText.textContent = `Sincronizando ${i} de ${total}: ${handle || 'Producto'}`;
+            progressFill.style.width = ((i / total) * 100) + '%';
 
             try {
               const jsonData = rowToShopifyJson(row, headers);
               
-              // Intentamos por ID (columna A), si no por Handle (columna B)
-              const endpoint = (id && id.length > 5) ? '/api/metafield' : '/api/metafield_by_handle';
-              const body = (id && id.length > 5) 
+              // Si el ID es falso (como 1fcddc...), forzamos búsqueda por Handle
+              const endpoint = isRealShopifyId ? '/api/metafield' : '/api/metafield_by_handle';
+              const body = isRealShopifyId 
                 ? { product_id: id, value: { sucursales: jsonData } }
                 : { handle: handle, value: { sucursales: jsonData } };
 
@@ -135,7 +136,7 @@
               
               const div = document.createElement('div');
               div.className = 'res-item';
-              div.innerHTML = `<span>${handle || id}</span> <span class="${data.ok ? 'ok' : 'err'}">${data.ok ? '✓ Actualizado' : '✗ Falló'}</span>`;
+              div.innerHTML = `<span>${handle || id}</span> <span class="${data.ok ? 'ok' : 'err'}">${data.ok ? '✓ Sincronizado' : '✗ ' + (data.error || 'Error')}</span>`;
               resultsArea.prepend(div);
 
             } catch (err) {
@@ -145,15 +146,15 @@
               resultsArea.prepend(div);
             }
             
-            // Pequeña pausa para no saturar la API
-            await new Promise(r => setTimeout(r, 200));
+            // Pausa técnica para evitar bloqueos de Shopify
+            await new Promise(r => setTimeout(r, 250));
           }
           
-          statusText.textContent = "¡Proceso masivo completado!";
-          alert("Sincronización finalizada.");
+          statusText.textContent = "¡Todo listo! Inventarios actualizados.";
+          alert("Sincronización masiva terminada.");
 
         } catch (err) {
-          alert("Error al leer el CSV: " + err.message);
+          alert("Error crítico: " + err.message);
         } finally {
           btnSubmit.disabled = false;
         }
