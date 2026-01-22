@@ -1,156 +1,107 @@
 <!doctype html>
 <html lang="es">
-  <head>
+<head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MundoIn — Sincronizador Maestro</title>
     <style>
-      :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; --primary:#22c55e; --border:#1f2937; }
-      *{box-sizing:border-box}
-      body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem}
-      .container{max-width:800px;margin:0 auto}
-      .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
-      h1{font-size:1.4rem;margin:0 0 1rem;color:#fff;text-align:center}
-      .file-row{display:flex;gap:.5rem;margin-bottom:1.5rem}
-      input[type="file"]{flex:1;padding:.6rem;background:#0b1220;border:1px dashed var(--border);color:var(--text);border-radius:8px}
-      button{padding:.6rem 1.5rem;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:bold;cursor:pointer;transition:0.2s}
-      button:disabled{opacity:0.5;cursor:not-allowed}
-      .progress-bar{height:8px;background:#1f2937;border-radius:4px;margin-bottom:1rem;overflow:hidden}
-      .progress-fill{height:100%;background:var(--primary);width:0%;transition:width 0.2s}
-      .log{background:#000;padding:1rem;border-radius:8px;font-family:monospace;font-size:0.8rem;max-height:350px;overflow-y:auto;border:1px solid var(--border);color:#aaa}
-      .log-item{margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #111}
-      .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308}
+        :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
+        body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:grid;place-items:center;min-height:100vh}
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:500px;text-align:center}
+        input[type="file"]{margin:1rem 0;display:block;width:100%}
+        button{background:var(--primary);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold}
+        #log{margin-top:1rem;font-size:0.8rem;text-align:left;max-height:200px;overflow-y:auto;background:black;padding:10px;border-radius:5px}
+        .green{color:var(--primary)} .red{color:#ff4444}
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="card">
-        <h1>Sincronización Masiva MundoIn</h1>
-        <p style="text-align:center;color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem">Actualización de Metafields custom.sucursales</p>
-        
-        <div class="file-row">
-          <input type="file" id="csvFile" accept=".csv" />
-          <button id="btnStart" disabled>Sincronizar CSV</button>
-        </div>
-
-        <div class="progress-bar"><div id="fill" class="progress-fill"></div></div>
-        <div id="log" class="log"><div>> Esperando archivo CSV...</div></div>
-      </div>
+</head>
+<body>
+    <div class="card">
+        <h2>Sincronizador MundoIn</h2>
+        <input type="file" id="csvFile" accept=".csv" />
+        <button id="btnStart">Actualizar Inventarios</button>
+        <div id="log"></div>
     </div>
 
     <script>
-      const input = document.getElementById('csvFile');
-      const btn = document.getElementById('btnStart');
-      const log = document.getElementById('log');
-      const fill = document.getElementById('fill');
+        const btn = document.getElementById('btnStart');
+        const log = document.getElementById('log');
 
-      input.onchange = () => btn.disabled = !input.files.length;
-
-      function addLog(msg, color='') {
-        const div = document.createElement('div');
-        div.className = 'log-item ' + color;
-        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        log.prepend(div);
-      }
-
-      function processRow(row, headers) {
-        // Encontrar dónde empiezan las sucursales (WEB)
-        const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
-        if(webIdx === -1) throw new Error("No se encontró la columna 'WEB'");
-
-        const sucursalesList = [];
-        const cantidades = [];
-
-        // 1. Extraer Sucursales y Stocks
-        for (let i = webIdx; i < headers.length; i++) {
-          const nombreSuc = headers[i].trim();
-          if(!nombreSuc) continue;
-          
-          sucursalesList.push({ nombre: nombreSuc, mapa: "" });
-          const stockVal = row[i] ? parseInt(row[i].toString().replace(/[^0-9]/g, '')) : 0;
-          cantidades.push(isNaN(stockVal) ? 0 : stockVal);
+        function addLog(msg, color='') {
+            const div = document.createElement('div');
+            div.className = color;
+            div.textContent = msg;
+            log.prepend(div);
         }
 
-        // 2. Extraer Opciones de Variante (Limpiando espacios)
-        const opciones = [];
-        // Usamos los valores de las columnas 3/4 y 5/6 del CSV (Nombre y Valor)
-        if(row[3] && row[4]) opciones.push({ nombre: row[3].trim(), valor: row[4].trim() });
-        if(row[5] && row[6]) opciones.push({ nombre: row[5].trim(), valor: row[6].trim() });
-
-        // Retornamos la estructura EXACTA que espera el Liquid de Shopify
-        return {
-          sucursales: sucursalesList,
-          variantes: [{
-            opciones: opciones,
-            cantidades: cantidades
-          }]
-        };
-      }
-
-      btn.onclick = async () => {
-        const file = input.files[0];
-        btn.disabled = true;
-        log.innerHTML = '';
-        addLog("Leyendo archivo...");
-
-        try {
-          const text = await file.text();
-          const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-          const headers = lines[0].split(',').map(h => h.trim());
-          const rows = lines.slice(1);
-
-          addLog(`Detectadas ${rows.length} filas. Iniciando...`, 'yellow');
-
-          for (let i = 0; i < rows.length; i++) {
-            const row = rows[i].split(',');
-            if (row.length < 2) continue;
-
-            const id = row[0]?.trim();
-            const handle = row[1]?.trim();
+        function processRow(row, headers) {
+            const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
             
-            fill.style.width = `${((i+1)/rows.length)*100}%`;
-
-            try {
-              const jsonData = processRow(row, headers);
-              
-              // Validación de ID real de Shopify (largo y numérico)
-              const isRealId = id && id.length >= 13 && /^\d+$/.test(id);
-              
-              // Si el ID es falso (como el del CSV de prueba), usamos metafield_by_handle
-              const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
-              
-              const payload = {
-                handle: handle,
-                product_id: isRealId ? id : null,
-                value: jsonData // Aquí va el objeto sucursales/variantes
-              };
-
-              const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body = payload)
-              });
-
-              const resData = await res.json();
-              
-              if (resData.ok) {
-                addLog(`✓ Sincronizado: ${handle}`, 'green');
-              } else {
-                addLog(`✗ Error en ${handle}: ${resData.error || 'Fallo desconocido'}`, 'red');
-              }
-            } catch (e) {
-              addLog(`✗ Error en fila ${i+2}: ${e.message}`, 'red');
+            // 1. Crear lista de sucursales con links de mapa (como tu JSON)
+            const sucursalesList = [];
+            const cantidades = [];
+            for (let i = webIdx; i < headers.length; i++) {
+                const nombre = headers[i].trim();
+                if(!nombre) continue;
+                sucursalesList.push({
+                    nombre: nombre,
+                    mapa: `http://googleusercontent.com/maps.google.com/${i - webIdx}`
+                });
+                const val = row[i] ? parseInt(row[i].toString().replace(/[^0-9]/g, '')) : 0;
+                cantidades.push(isNaN(val) ? 0 : val);
             }
-            
-            // Pausa para respetar los límites de Shopify
-            await new Promise(r => setTimeout(r, 250));
-          }
-          addLog("--- PROCESO FINALIZADO ---", "green");
-        } catch (err) {
-          addLog("Error crítico: " + err.message, "red");
+
+            // 2. Crear el objeto con la estructura EXACTA del JSON que compartiste
+            return {
+                sucursales: {
+                    sucursales: sucursalesList,
+                    variantes: [{
+                        opciones: [
+                            { nombre: "Tamaño", valor: row[4]?.trim() || "" },
+                            { nombre: "Color", valor: row[6]?.trim() || "" }
+                        ],
+                        cantidades: cantidades
+                    }]
+                }
+            };
         }
-        btn.disabled = false;
-      };
+
+        btn.onclick = async () => {
+            const file = document.getElementById('csvFile').files[0];
+            if(!file) return alert("Sube un archivo");
+            
+            const text = await file.text();
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+            const headers = lines[0].split(',').map(h => h.trim());
+            const rows = lines.slice(1);
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i].split(',');
+                const handle = row[1]?.trim();
+                const id = row[0]?.trim();
+                const isRealId = id && id.length > 12 && /^\d+$/.test(id);
+
+                try {
+                    const finalData = processRow(row, headers);
+                    
+                    const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            handle: handle,
+                            product_id: isRealId ? id : null,
+                            value: finalData // Enviamos el objeto con la doble llave
+                        })
+                    });
+
+                    const data = await res.json();
+                    if(data.ok) addLog(`✓ ${handle} actualizado`, 'green');
+                    else addLog(`✗ Error en ${handle}`, 'red');
+                } catch (e) {
+                    addLog(`✗ Error: ${e.message}`, 'red');
+                }
+            }
+            addLog("--- FIN ---");
+        };
     </script>
-  </body>
+</body>
 </html>
