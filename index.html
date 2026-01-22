@@ -3,128 +3,112 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MundoIn — Sincronizador Masivo</title>
+    <title>MundoIn — Sincronizador Pro</title>
     <style>
       :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; --primary:#22c55e; --border:#1f2937; }
       *{box-sizing:border-box}
-      body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 800px at 80% -200px,#1e293b 20%,transparent 60%),var(--bg);color:var(--text);min-height:100vh;display:grid;align-items:start}
-      .container{width:100%;max-width:800px;margin:3rem auto;padding:0 1rem}
-      .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:16px;padding:1.5rem;box-shadow:0 20px 40px rgba(0,0,0,.35)}
-      h1{font-size:1.5rem;margin:0 0 .5rem;color:#fff}
-      .desc{color:var(--muted);margin-bottom:1.5rem}
-      .file-row{display:grid;grid-template-columns:1fr auto;gap:.75rem;align-items:center}
-      input[type="file"]{width:100%;padding:.75rem;border-radius:12px;border:1px dashed var(--border);background:#0b1220;color:var(--text);cursor:pointer}
-      button{border:none;border-radius:12px;padding:.75rem 1.5rem;background:linear-gradient(180deg,var(--primary),#16a34a);color:#fff;font-weight:600;cursor:pointer;transition:all .2s}
-      button:disabled{opacity:.5;cursor:not-allowed}
-      .progress-container{margin-top:1.5rem}
-      .progress-bar{width:100%;height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:.5rem}
-      .progress-fill{height:100%;background:#22c55e;width:0%;transition:width 0.3s}
-      #statusText{font-size:0.9rem;color:var(--muted)}
-      .results-area{margin-top:1.5rem;max-height:300px;overflow-y:auto;background:#0b1220;border-radius:12px;padding:1rem;border:1px solid var(--border)}
-      .res-item{font-size:0.85rem;padding:.4rem 0;border-bottom:1px solid #1f2937;display:flex;justify-content:space-between}
-      .ok{color:#22c55e} .err{color:#ef4444}
-      .note{margin-top:1rem;padding:.75rem;background:rgba(34,197,94,0.05);border-left:3px solid var(--primary);border-radius:4px;font-size:0.85rem;color:var(--muted)}
+      body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem}
+      .container{max-width:800px;margin:0 auto}
+      .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
+      h1{font-size:1.4rem;margin:0 0 1rem;color:#fff}
+      .file-row{display:flex;gap:.5rem;margin-bottom:1rem}
+      input[type="file"]{flex:1;padding:.6rem;background:#0b1220;border:1px dashed var(--border);color:var(--text);border-radius:8px}
+      button{padding:.6rem 1.5rem;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:bold;cursor:pointer}
+      button:disabled{opacity:0.5}
+      .log{background:#000;padding:1rem;border-radius:8px;font-family:monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;border:1px solid var(--border)}
+      .log-item{margin-bottom:4px;border-bottom:1px solid #111;padding-bottom:2px}
+      .green{color:#22c55e} .red{color:#ef4444} .gray{color:#666}
+      .progress-bar{height:6px;background:#1f2937;border-radius:3px;margin-bottom:1rem;overflow:hidden}
+      .progress-fill{height:100%;background:var(--primary);width:0%;transition:width 0.2s}
     </style>
   </head>
   <body>
-    <main class="container">
+    <div class="container">
       <div class="card">
-        <h1>Sincronización de Inventarios</h1>
-        <p class="desc">Actualiza sucursales en <b>mundo-jm-test.myshopify.com</b> de forma masiva.</p>
-
-        <form id="uploadForm">
-          <label style="display:block;margin-bottom:.5rem;font-weight:600">Archivo CSV de Productos</label>
-          <div class="file-row">
-            <input type="file" id="csvFile" accept=".csv" required />
-            <button type="submit" id="btnSubmit" disabled>Actualizar Tienda</button>
-          </div>
-        </form>
-
-        <div id="progressArea" class="progress-container hidden">
-          <div id="statusText">Leyendo CSV...</div>
-          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <h1>Sincronización de Sucursales</h1>
+        <div class="file-row">
+          <input type="file" id="csvFile" accept=".csv" />
+          <button id="btnStart" disabled>Actualizar Todo</button>
         </div>
-
-        <div id="resultsArea" class="results-area hidden"></div>
-
-        <div class="note">
-          <b>Tip:</b> Si el ID de la Columna A no es válido, el sistema usará el Handle (Columna B) para encontrar el producto.
-        </div>
+        <div class="progress-bar"><div id="fill" class="progress-fill"></div></div>
+        <div id="log" class="log"><div class="gray">> Esperando archivo...</div></div>
       </div>
-    </main>
+    </div>
 
     <script>
-      const fileInput = document.getElementById('csvFile');
-      const btnSubmit = document.getElementById('btnSubmit');
-      const resultsArea = document.getElementById('resultsArea');
-      const progressFill = document.getElementById('progressFill');
-      const statusText = document.getElementById('statusText');
+      const input = document.getElementById('csvFile');
+      const btn = document.getElementById('btnStart');
+      const log = document.getElementById('log');
+      const fill = document.getElementById('fill');
 
-      fileInput.addEventListener('change', () => btnSubmit.disabled = !fileInput.files.length);
+      input.onchange = () => btn.disabled = !input.files.length;
 
-      function rowToShopifyJson(row, headers) {
-        const startIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
-        if (startIdx === -1) throw new Error("No se detectó la columna 'WEB'");
+      function addLog(msg, color='') {
+        const div = document.createElement('div');
+        div.className = 'log-item ' + color;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        log.prepend(div);
+      }
+
+      // Procesa una fila del CSV para crear el JSON exacto de MundoIn
+      function processRow(row, headers) {
+        // En tu CSV "WEB" es la columna 12
+        const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
+        if(webIdx === -1) throw new Error("No encontré la columna WEB");
 
         const sucursales = [];
         const cantidades = [];
-        
-        for (let c = startIdx; c < headers.length; c++) {
-          const nombre = headers[c].trim();
-          if (!nombre) continue;
-          sucursales.push({ nombre, mapa: "" });
-          const val = row[c] ? parseInt(row[c].toString().replace(/[^0-9]/g, '')) : 0;
+
+        // 1. Extraer nombres de sucursales y sus stocks
+        for (let i = webIdx; i < headers.length; i++) {
+          sucursales.push({ nombre: headers[i].trim(), mapa: "" });
+          const val = row[i] ? parseInt(row[i].toString().replace(/[^0-9]/g, '')) : 0;
           cantidades.push(isNaN(val) ? 0 : val);
         }
 
+        // 2. Extraer variantes (USANDO LOS VALORES DE LA FILA, NO LOS HEADERS)
+        // row[3] es "Tamaño", row[4] es "Individual"
+        const opciones = [];
+        if(row[3] && row[4]) opciones.push({ nombre: row[3].trim(), valor: row[4].trim() });
+        if(row[5] && row[6]) opciones.push({ nombre: row[5].trim(), valor: row[6].trim() });
+        if(row[7] && row[8]) opciones.push({ nombre: row[7].trim(), valor: row[8].trim() });
+
         return {
-          sucursales,
-          variantes: [{
-            opciones: [
-              { nombre: headers[3] || "Tamaño", valor: row[4] || "" },
-              { nombre: headers[5] || "Color", valor: row[6] || "" }
-            ],
-            cantidades
-          }]
+          sucursales: sucursales,
+          variantes: [{ opciones, cantidades }]
         };
       }
 
-      document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const file = fileInput.files[0];
-        btnSubmit.disabled = true;
-        
-        document.getElementById('progressArea').classList.remove('hidden');
-        resultsArea.classList.remove('hidden');
-        resultsArea.innerHTML = '';
+      btn.onclick = async () => {
+        const file = input.files[0];
+        btn.disabled = true;
+        log.innerHTML = '';
+        addLog("Iniciando proceso...");
 
         try {
           const text = await file.text();
           const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
           const headers = lines[0].split(',').map(h => h.trim());
-          const total = lines.length - 1;
+          const rows = lines.slice(1);
 
-          for (let i = 1; i < lines.length; i++) {
-            const row = lines[i].split(',');
+          for (let i = 0; i < rows.size || i < rows.length; i++) {
+            const row = rows[i].split(',');
             if (row.length < 2) continue;
 
             const id = row[0]?.trim();
             const handle = row[1]?.trim();
-            
-            // VALIDACIÓN DE ID: Shopify IDs son solo números y largos (13+ dígitos)
-            const isRealShopifyId = id && id.length >= 13 && /^\d+$/.test(id);
-
-            statusText.textContent = `Sincronizando ${i} de ${total}: ${handle || 'Producto'}`;
-            progressFill.style.width = ((i / total) * 100) + '%';
+            fill.style.width = `${((i+1)/rows.length)*100}%`;
 
             try {
-              const jsonData = rowToShopifyJson(row, headers);
+              const stockData = processRow(row, headers);
               
-              // Si el ID es falso (como 1fcddc...), forzamos búsqueda por Handle
-              const endpoint = isRealShopifyId ? '/api/metafield' : '/api/metafield_by_handle';
-              const body = isRealShopifyId 
-                ? { product_id: id, value: { sucursales: jsonData } }
-                : { handle: handle, value: { sucursales: jsonData } };
+              // Muy importante: Envolvemos los datos en el objeto "sucursales"
+              const payload = { sucursales: stockData };
+
+              // Forzamos búsqueda por HANDLE si el ID es corto/incorrecto
+              const isRealId = id && id.length > 12 && /^\d+$/.test(id);
+              const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
+              const body = isRealId ? { product_id: id, value: payload } : { handle: handle, value: payload };
 
               const res = await fetch(endpoint, {
                 method: 'POST',
@@ -132,33 +116,23 @@
                 body: JSON.stringify(body)
               });
 
-              const data = await res.json();
-              
-              const div = document.createElement('div');
-              div.className = 'res-item';
-              div.innerHTML = `<span>${handle || id}</span> <span class="${data.ok ? 'ok' : 'err'}">${data.ok ? '✓ Sincronizado' : '✗ ' + (data.error || 'Error')}</span>`;
-              resultsArea.prepend(div);
-
-            } catch (err) {
-              const div = document.createElement('div');
-              div.className = 'res-item err';
-              div.textContent = `✗ ${handle || id}: ${err.message}`;
-              resultsArea.prepend(div);
+              const resData = await res.json();
+              if (resData.ok) {
+                addLog(`✓ Actualizado: ${handle}`, 'green');
+              } else {
+                addLog(`✗ Error en ${handle}: ${resData.error}`, 'red');
+              }
+            } catch (e) {
+              addLog(`✗ Error procesando fila ${i+1}: ${e.message}`, 'red');
             }
-            
-            // Pausa técnica para evitar bloqueos de Shopify
-            await new Promise(r => setTimeout(r, 250));
+            await new Promise(r => setTimeout(r, 300)); // Evita bloqueos
           }
-          
-          statusText.textContent = "¡Todo listo! Inventarios actualizados.";
-          alert("Sincronización masiva terminada.");
-
+          addLog("¡PROCESO COMPLETADO!", "green");
         } catch (err) {
-          alert("Error crítico: " + err.message);
-        } finally {
-          btnSubmit.disabled = false;
+          addLog("Fallo crítico: " + err.message, "red");
         }
-      });
+        btn.disabled = false;
+      };
     </script>
   </body>
 </html>
