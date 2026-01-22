@@ -2,21 +2,21 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>MundoIn Sincronizador v4</title>
+    <title>Sincronizador MundoIn v6</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
         body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
-        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px}
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;border:1px solid var(--border)}
         input[type="file"]{margin:20px 0;width:100%;padding:10px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px}
-        button{background:var(--primary);color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%}
-        #log{margin-top:20px;font-size:0.8rem;background:black;padding:15px;border-radius:8px;max-height:250px;overflow-y:auto;border:1px solid #1e293b}
+        button{background:var(--primary);color:white;border:none;padding:14px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%}
+        #log{margin-top:20px;font-size:0.8rem;background:black;padding:15px;border-radius:8px;max-height:250px;overflow-y:auto;color:#cbd5e1;font-family:monospace}
         .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308}
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 style="margin:0">Sincronizador MundoIn</h2>
-        <p style="color:#94a3b8;font-size:0.85rem">Versión de compatibilidad total (Stringify Force).</p>
+        <h2 style="margin:0">Sincronizador MundoIn v6</h2>
+        <p style="color:#94a3b8;font-size:0.85rem">Namespace confirmado: <b>custom.sucursales</b></p>
         <input type="file" id="csvFile" accept=".csv" />
         <button id="btnStart">Actualizar Ahora</button>
         <div id="log">> Esperando archivo...</div>
@@ -38,7 +38,7 @@
             if(!file) return alert("Selecciona un CSV");
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Leyendo archivo...", "yellow");
+            addLog("Procesando...", "yellow");
 
             try {
                 const text = await file.text();
@@ -59,7 +59,11 @@
                     if (!productos[key]) {
                         const sList = [];
                         for (let i = webIdx; i < headers.length; i++) {
-                            sList.push({ nombre: headers[i].trim(), mapa: `https://maps.google.com/?q=${headers[i].trim()}` });
+                            // Generamos los nombres y el formato de mapa igual al tuyo
+                            sList.push({ 
+                                nombre: headers[i].trim(), 
+                                mapa: `http://googleusercontent.com/maps.google.com/${i - webIdx}` 
+                            });
                         }
                         productos[key] = { id, handle, sucursales: sList, variantes: [] };
                     }
@@ -82,34 +86,32 @@
                     const p = productos[key];
                     const isRealId = p.id && p.id.length > 12 && /^\d+$/.test(p.id);
                     
-                    // ESTRUCTURA EXACTA SEGÚN TU JSON
-                    const rawJson = {
+                    // ESTRUCTURA EXACTA QUE ME PASASTE
+                    const finalPayload = {
                         sucursales: {
                             sucursales: p.sucursales,
                             variantes: p.variantes
                         }
                     };
 
-                    addLog(`Sincronizando ${p.handle}...`, "yellow");
+                    addLog(`Enviando ${p.handle}...`, "yellow");
 
                     const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
-                    
                     const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             handle: p.handle,
                             product_id: isRealId ? p.id : null,
-                            // ENVIAMOS EL JSON COMO STRING (Shopify Requirement)
-                            value: JSON.stringify(rawJson) 
+                            value: JSON.stringify(finalPayload) // IMPORTANTE: Enviado como String
                         })
                     });
 
                     const data = await res.json();
-                    if(data.ok) addLog(`✓ ${p.handle}: Actualizado OK`, "green");
+                    if(data.ok) addLog(`✓ ${p.handle}: Sincronizado`, "green");
                     else addLog(`✗ ${p.handle}: ${data.error}`, "red");
                 }
-                addLog("--- PROCESO TERMINADO ---", "green");
+                addLog("--- TERMINADO ---", "green");
             } catch (e) {
                 addLog("Error: " + e.message, "red");
             }
