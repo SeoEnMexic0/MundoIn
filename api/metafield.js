@@ -8,18 +8,18 @@ export default async function handler(req, res) {
   try {
     const { product_id, value } = req.body;
     
-    // --- DOMINIO REAL DE MUNDO IN ---
+    // CONFIGURACIÓN MUNDO IN
     const host = 'mundo-in.myshopify.com'; 
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
     const version = '2024-07';
 
     if (!token) throw new Error("Token no configurado en Vercel");
-    if (!product_id) throw new Error("Falta el ID del producto en el CSV");
+    if (!product_id) throw new Error("Falta el ID en el CSV");
 
-    const gid = `gid://shopify/Product/${product_id}`;
+    // CAMBIO CLAVE: Ahora usamos ProductVariant en lugar de Product
+    const gid = `gid://shopify/ProductVariant/${product_id.trim()}`;
     const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
-    // Convertimos el valor a string para Shopify
     const stringValue = typeof value === 'object' ? JSON.stringify(value) : value;
 
     const mutation = `
