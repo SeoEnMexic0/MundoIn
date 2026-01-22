@@ -9,19 +9,25 @@ export default async function handler(req, res) {
 
   try {
     const { handle, value } = req.body;
-    const store = process.env.SHOPIFY_STORE;
-    const version = process.env.SHOPIFY_API_VERSION || '2024-07';
+    
+    // --- CORRECCIÓN DE DOMINIO ---
+    // Forzamos el host interno para que Shopify no rechace la conexión
+    const host = 'mundo-jm-test.myshopify.com'; 
+    const version = '2024-07';
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
 
-    if (!store || !token || !handle || !value) {
-      return res.status(400).json({ ok: false, error: 'Faltan parámetros' });
+    // Validación básica
+    if (!token || !handle || !value) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: `Faltan parámetros. Token: ${token ? 'OK' : 'FALTA'}, Handle: ${handle || 'FALTA'}` 
+      });
     }
 
-    const host = store.includes('.myshopify.com') ? store : `${store}.myshopify.com`;
     const valueStr = typeof value === 'object' ? JSON.stringify(value) : value;
     const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
-    // Buscar producto por handle
+    // 1. Buscar producto por handle (ej: cama-luton)
     const findQuery = `query($h:String!){productByHandle(handle:$h){id}}`;
     const findRes = await fetch(gqlUrl, {
       method: 'POST',
@@ -29,20 +35,32 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': token
       },
-      body: JSON.stringify({ query: findQuery, variables: { h: handle.toLowerCase() } })
+      body: JSON.stringify({ query: findQuery, variables: { h: handle.toLowerCase().trim() } })
     });
 
     const findResult = await findRes.json();
+    
+    // Manejo de error si la respuesta de Shopify no es lo que esperamos
+    if (findResult.errors) {
+      return res.status(500).json({ ok: false, error: 'Error en consulta Shopify', detalles: findResult.errors });
+    }
+
     const gid = findResult?.data?.productByHandle?.id;
 
     if (!gid) {
-      return res.status(404).json({ ok: false, error: 'Producto no encontrado', handle });
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado en Shopify', handle });
     }
 
-    // Actualizar metafield
+    // 2. Actualizar o crear el metafield
     const query = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
     const variables = {
-      m: [{ ownerId: gid, namespace: 'custom', key: 'sucursales', type: 'json', value: valueStr }]
+      m: [{ 
+        ownerId: gid, 
+        namespace: 'custom', 
+        key: 'sucursales', 
+        type: 'json', 
+        value: valueStr 
+      }]
     };
 
     const response = await fetch(gqlUrl, {
@@ -58,12 +76,13 @@ export default async function handler(req, res) {
     const errors = result?.data?.metafieldsSet?.userErrors || [];
 
     if (errors.length > 0) {
-      return res.status(422).json({ ok: false, error: errors });
+      return res.status(422).json({ ok: false, error: 'Shopify rechazó los datos', detalles: errors });
     }
 
+    // ÉXITO
     res.status(200).json({ ok: true, gid, handle });
 
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: 'Error interno del servidor: ' + error.message });
   }
 }
