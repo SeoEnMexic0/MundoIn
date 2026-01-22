@@ -13,9 +13,21 @@ export default async function handler(req, res) {
     const version = process.env.SHOPIFY_API_VERSION || '2024-07';
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
 
-    if (!store || !token || !product_id || !value) {
-      return res.status(400).json({ ok: false, error: 'Faltan parámetros' });
+    // --- BLOQUE DE DEPURACIÓN (ESTO TE DIRÁ QUÉ FALTA) ---
+    const faltantes = [];
+    if (!store) faltantes.push("Configuración: SHOPIFY_STORE");
+    if (!token) faltantes.push("Configuración: SHOPIFY_ADMIN_TOKEN");
+    if (!product_id) faltantes.push("Dato: ID del producto");
+    if (!value) faltantes.push("Dato: Valores de sucursales (value)");
+
+    if (faltantes.length > 0) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: `Error de parámetros`, 
+        detalles: `No se recibieron los siguientes datos: ${faltantes.join(', ')}` 
+      });
     }
+    // ----------------------------------------------------
 
     const host = store.includes('.myshopify.com') ? store : `${store}.myshopify.com`;
     const gid = `gid://shopify/Product/${product_id}`;
@@ -36,10 +48,16 @@ export default async function handler(req, res) {
     });
 
     const result = await response.json();
+    
+    // Si Shopify devuelve errores de red o API
+    if (result.errors) {
+        return res.status(500).json({ ok: false, error: 'Error de Shopify API', detalles: result.errors });
+    }
+
     const errors = result?.data?.metafieldsSet?.userErrors || [];
 
     if (errors.length > 0) {
-      return res.status(422).json({ ok: false, error: errors });
+      return res.status(422).json({ ok: false, error: 'Error de Shopify Metafields', detalles: errors });
     }
 
     res.status(200).json({ ok: true, gid });
