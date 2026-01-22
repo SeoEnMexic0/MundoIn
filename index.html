@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>MundoIn — Sincronizador Multivariante</title>
+    <title>MundoIn — Sincronizador Maestro</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
         body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:grid;place-items:center;min-height:100vh;padding:20px}
@@ -16,8 +16,8 @@
 </head>
 <body>
     <div class="card">
-        <h2 style="margin-top:0">Actualizador MundoIn Pro</h2>
-        <p style="color:#94a3b8;font-size:0.9rem">Sincroniza todas las variantes de un producto a la vez.</p>
+        <h2>Sincronizador MundoIn v2</h2>
+        <p style="color:#94a3b8;font-size:0.9rem">Asegúrate de que tu CSV tenga todas las variantes del producto.</p>
         <input type="file" id="csvFile" accept=".csv" />
         <button id="btnStart">Actualizar Inventarios</button>
         <div id="log">> Esperando archivo...</div>
@@ -40,7 +40,7 @@
             
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Iniciando procesamiento masivo...", "yellow");
+            addLog("Iniciando procesamiento...", "yellow");
 
             try {
                 const text = await file.text();
@@ -49,8 +49,8 @@
                 const rows = lines.slice(1);
                 
                 const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
+                if(webIdx === -1) throw new Error("No se encontró la columna 'WEB'");
 
-                // AGRUPAR POR PRODUCTO (HANDLE)
                 const productos = {};
 
                 rows.forEach(line => {
@@ -62,7 +62,6 @@
                     const key = handle || id;
 
                     if (!productos[key]) {
-                        // Configuración inicial del producto y sucursales
                         const sucursalesList = [];
                         for (let i = webIdx; i < headers.length; i++) {
                             sucursalesList.push({
@@ -70,15 +69,9 @@
                                 mapa: `http://googleusercontent.com/maps.google.com/${i - webIdx}`
                             });
                         }
-                        productos[key] = {
-                            id: id,
-                            handle: handle,
-                            sucursales: sucursalesList,
-                            variantes: []
-                        };
+                        productos[key] = { id, handle, sucursales: sucursalesList, variantes: [] };
                     }
 
-                    // Agregar esta variante al producto
                     const cantidades = [];
                     for (let i = webIdx; i < headers.length; i++) {
                         const val = parseInt(row[i]?.replace(/[^0-9]/g, '') || 0);
@@ -94,14 +87,11 @@
                     });
                 });
 
-                // ENVIAR CADA PRODUCTO A SHOPIFY
-                const keys = Object.keys(productos);
-                for (const key of keys) {
+                for (const key in productos) {
                     const p = productos[key];
                     const isRealId = p.id && p.id.length > 12 && /^\d+$/.test(p.id);
                     
-                    addLog(`Sincronizando ${p.handle}...`, "yellow");
-
+                    // ESTRUCTURA EXACTA SEGÚN TU JSON
                     const finalValue = {
                         sucursales: {
                             sucursales: p.sucursales,
@@ -109,28 +99,30 @@
                         }
                     };
 
+                    addLog(`Enviando ${p.handle}...`, "yellow");
+
                     const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
+                    
                     const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             handle: p.handle,
                             product_id: isRealId ? p.id : null,
-                            value: finalValue
+                            // IMPORTANTE: Convertimos el objeto a texto para Shopify
+                            value: JSON.stringify(finalValue) 
                         })
                     });
 
                     const resData = await res.json();
-                    if(resData.ok) addLog(`✓ ${p.handle} sincronizado con éxito`, "green");
-                    else addLog(`✗ Error en ${p.handle}: ${resData.error}`, "red");
+                    if(resData.ok) addLog(`✓ ${p.handle}: Actualizado a ${p.variantes.length} variantes.`, "green");
+                    else addLog(`✗ ${p.handle}: ${resData.error}`, "red");
                     
-                    await new Promise(r => setTimeout(r, 400)); // Pausa de seguridad
+                    await new Promise(r => setTimeout(r, 400));
                 }
-
                 addLog("--- PROCESO TERMINADO ---", "green");
-
             } catch (e) {
-                addLog("Error crítico: " + e.message, "red");
+                addLog("Error: " + e.message, "red");
             }
             btn.disabled = false;
         };
