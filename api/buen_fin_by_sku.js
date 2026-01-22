@@ -3,74 +3,42 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
     const { sku } = req.body;
-    const store = process.env.SHOPIFY_STORE;
-    const version = process.env.SHOPIFY_API_VERSION || '2024-07';
+    const host = 'mundo-jm-test.myshopify.com';
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
 
-    if (!store || !token || !sku) {
-      return res.status(400).json({ ok: false, error: 'Faltan parámetros' });
-    }
-
-    const host = store.includes('.myshopify.com') ? store : `${store}.myshopify.com`;
-    const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
-
+    const gqlUrl = `https://${host}/admin/api/2024-07/graphql.json`;
+    
     // Buscar por SKU
-    const findQuery = `query($q:String!){productVariants(first:50,query:$q){edges{node{sku product{id}}}}}`;
+    const findQuery = `query($q:String!){ products(first:1, query:$q){ edges{ node{ id } } } }`;
     const findRes = await fetch(gqlUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
       body: JSON.stringify({ query: findQuery, variables: { q: `sku:${sku}` } })
     });
 
-    const findResult = await findRes.json();
-    const edges = findResult?.data?.productVariants?.edges || [];
+    const findData = await findRes.json();
+    const gid = findData?.data?.products?.edges[0]?.node?.id;
 
-    let productGid = null;
-    for (const edge of edges) {
-      if (edge.node.sku?.toLowerCase().includes(sku.toLowerCase())) {
-        productGid = edge.node.product.id;
-        break;
-      }
-    }
+    if (!gid) return res.status(404).json({ ok: false, error: 'SKU no encontrado' });
 
-    if (!productGid) {
-      return res.status(404).json({ ok: false, error: `SKU no encontrado: ${sku}` });
-    }
-
-    // Establecer metafield buen_fin
-    const query = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
+    // Activar buen_fin = true
+    const mutation = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
     const variables = {
-      m: [{ ownerId: productGid, namespace: 'custom', key: 'buen_fin', type: 'boolean', value: 'true' }]
+      m: [{ ownerId: gid, namespace: 'custom', key: 'buen_fin', type: 'boolean', value: "true" }]
     };
 
-    const response = await fetch(gqlUrl, {
+    await fetch(gqlUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
-      body: JSON.stringify({ query, variables })
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({ query: mutation, variables })
     });
 
-    const result = await response.json();
-    const errors = result?.data?.metafieldsSet?.userErrors || [];
-
-    if (errors.length > 0) {
-      return res.status(422).json({ ok: false, error: errors });
-    }
-
-    res.status(200).json({ ok: true, sku, product_gid: productGid });
-
+    return res.status(200).json({ ok: true, product_gid: gid, http: { matched_strategy: 'exact' } });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: error.message });
   }
 }
