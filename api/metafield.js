@@ -7,15 +7,26 @@ export default async function handler(req, res) {
 
   try {
     const { product_id, value } = req.body;
-    const host = 'mundo-jm-test.myshopify.com';
+    
+    // FORZADO DE DOMINIO INTERNO
+    const host = 'mundo-jm-test.myshopify.com'; 
     const token = process.env.SHOPIFY_ADMIN_TOKEN;
+    const version = '2024-07';
+
+    if (!token) throw new Error("Token no configurado en Vercel");
 
     const gid = `gid://shopify/Product/${product_id}`;
-    const gqlUrl = `https://${host}/admin/api/2024-07/graphql.json`;
+    const gqlUrl = `https://${host}/admin/api/${version}/graphql.json`;
 
     const mutation = `mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){metafields{id}userErrors{message}}}`;
     const variables = {
-      m: [{ ownerId: gid, namespace: 'custom', key: 'sucursales', type: 'json', value: JSON.stringify(value) }]
+      m: [{ 
+        ownerId: gid, 
+        namespace: 'custom', 
+        key: 'sucursales', 
+        type: 'json', 
+        value: typeof value === 'object' ? JSON.stringify(value) : value 
+      }]
     };
 
     const response = await fetch(gqlUrl, {
@@ -26,6 +37,7 @@ export default async function handler(req, res) {
 
     const result = await response.json();
     return res.status(200).json({ ok: true, result });
+
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
   }
