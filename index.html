@@ -2,24 +2,23 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>MundoIn — Sincronizador Maestro</title>
+    <title>MundoIn Sincronizador v3</title>
     <style>
         :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
-        body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:grid;place-items:center;min-height:100vh;padding:20px}
-        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;text-align:center}
-        input[type="file"]{margin:1rem 0;display:block;width:100%;padding:10px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px}
-        button{background:var(--primary);color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%}
-        button:disabled{opacity:0.5}
-        #log{margin-top:1.5rem;font-size:0.85rem;text-align:left;max-height:300px;overflow-y:auto;background:black;padding:15px;border-radius:8px;border:1px solid #1e293b;line-height:1.6}
+        body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px}
+        input[type="file"]{margin:20px 0;width:100%;padding:10px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px}
+        button{background:var(--primary);color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%}
+        #log{margin-top:20px;font-size:0.8rem;background:black;padding:15px;border-radius:8px;max-height:250px;overflow-y:auto;border:1px solid #1e293b}
         .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308}
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Sincronizador MundoIn v2</h2>
-        <p style="color:#94a3b8;font-size:0.9rem">Asegúrate de que tu CSV tenga todas las variantes del producto.</p>
+        <h2 style="margin:0 0 10px">Sincronizador MundoIn</h2>
+        <p style="color:#94a3b8;font-size:0.85rem">Actualización masiva de stock por sucursales.</p>
         <input type="file" id="csvFile" accept=".csv" />
-        <button id="btnStart">Actualizar Inventarios</button>
+        <button id="btnStart">Actualizar Ahora</button>
         <div id="log">> Esperando archivo...</div>
     </div>
 
@@ -36,11 +35,11 @@
 
         btn.onclick = async () => {
             const file = document.getElementById('csvFile').files[0];
-            if(!file) return alert("Selecciona el archivo CSV");
+            if(!file) return alert("Selecciona un CSV");
             
             btn.disabled = true;
             log.innerHTML = '';
-            addLog("Iniciando procesamiento...", "yellow");
+            addLog("Leyendo CSV...", "yellow");
 
             try {
                 const text = await file.text();
@@ -49,8 +48,6 @@
                 const rows = lines.slice(1);
                 
                 const webIdx = headers.findIndex(h => h.trim().toUpperCase() === 'WEB');
-                if(webIdx === -1) throw new Error("No se encontró la columna 'WEB'");
-
                 const productos = {};
 
                 rows.forEach(line => {
@@ -91,8 +88,8 @@
                     const p = productos[key];
                     const isRealId = p.id && p.id.length > 12 && /^\d+$/.test(p.id);
                     
-                    // ESTRUCTURA EXACTA SEGÚN TU JSON
-                    const finalValue = {
+                    // ESTRUCTURA EXACTA SEGÚN TU JSON DE REFERENCIA
+                    const finalData = {
                         sucursales: {
                             sucursales: p.sucursales,
                             variantes: p.variantes
@@ -102,25 +99,21 @@
                     addLog(`Enviando ${p.handle}...`, "yellow");
 
                     const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
-                    
                     const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             handle: p.handle,
                             product_id: isRealId ? p.id : null,
-                            // IMPORTANTE: Convertimos el objeto a texto para Shopify
-                            value: JSON.stringify(finalValue) 
+                            value: finalData // Enviamos como objeto, el backend se encarga del resto
                         })
                     });
 
-                    const resData = await res.json();
-                    if(resData.ok) addLog(`✓ ${p.handle}: Actualizado a ${p.variantes.length} variantes.`, "green");
-                    else addLog(`✗ ${p.handle}: ${resData.error}`, "red");
-                    
-                    await new Promise(r => setTimeout(r, 400));
+                    const data = await res.json();
+                    if(data.ok) addLog(`✓ ${p.handle}: Éxito (${p.variantes.length} var.)`, "green");
+                    else addLog(`✗ ${p.handle}: ${data.error}`, "red");
                 }
-                addLog("--- PROCESO TERMINADO ---", "green");
+                addLog("--- FIN DEL PROCESO ---", "green");
             } catch (e) {
                 addLog("Error: " + e.message, "red");
             }
