@@ -3,576 +3,163 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MundoIn — Subir CSV</title>
+    <title>MundoIn — Actualizador de Sucursales</title>
     <style>
       :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; --primary:#22c55e; --border:#1f2937; }
       *{box-sizing:border-box}
-      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";background:radial-gradient(1200px 800px at 80% -200px,#1e293b 20%,transparent 60%),var(--bg);color:var(--text);min-height:100vh;display:grid;align-items:start}
+      body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 800px at 80% -200px,#1e293b 20%,transparent 60%),var(--bg);color:var(--text);min-height:100vh;display:grid;align-items:start}
       .container{width:100%;max-width:720px;margin:3rem auto;padding:0 1rem}
-      .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:16px;padding:1.25rem;box-shadow:0 20px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04)}
+      .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:16px;padding:1.25rem;box-shadow:0 20px 40px rgba(0,0,0,.35)}
       h1{font-size:1.5rem;margin:0 0 .5rem}
       p.desc{color:var(--muted);margin:0 0 1rem}
       label{display:block;font-weight:600;margin-bottom:.5rem}
       .file-row{display:grid;grid-template-columns:1fr auto;gap:.75rem;align-items:center}
       input[type="file"]{width:100%;padding:.75rem;border-radius:12px;border:1px dashed var(--border);background:#0b1220;color:var(--text)}
-      .hint{color:var(--muted);font-size:.9rem;margin-top:.5rem}
-      .file-info{margin-top:.5rem;font-size:.95rem}
       .hidden{display:none}
-      button{appearance:none;border:1px solid transparent;border-radius:12px;padding:.75rem 1rem;background:linear-gradient(180deg,var(--primary),#16a34a);color:#fff;font-weight:600;cursor:pointer;transition:transform .06s ease,filter .2s ease,opacity .2s ease}
+      button{appearance:none;border:none;border-radius:12px;padding:.75rem 1rem;background:linear-gradient(180deg,var(--primary),#16a34a);color:#fff;font-weight:600;cursor:pointer}
       button:disabled{opacity:.6;cursor:not-allowed}
-      button:hover:not(:disabled){filter:brightness(1.05)}
-      button:active:not(:disabled){transform:translateY(1px)}
-      .note{border-left:3px solid var(--primary);padding:.75rem;background:#0b1220;border-radius:8px;color:var(--muted);margin-top:1rem}
-      .actions{display:flex;gap:.75rem;margin-top:1rem}
-      .separator{height:2rem}
-      .buen-fin-card{border-color:#fbbf24;background:linear-gradient(180deg,rgba(251,191,36,.05),rgba(251,191,36,.02))}
-      .buen-fin-card h1{color:#fbbf24}
-      .buen-fin-note{border-left:3px solid #fbbf24;background:#0b1220}
-      #bfResults{margin-top:1rem;padding:.75rem;background:#0b1220;border-radius:8px;max-height:300px;overflow-y:auto;font-size:.9rem}
-      .result-item{margin:.25rem 0;padding:.25rem 0;border-bottom:1px solid var(--border)}
-      .result-item:last-child{border-bottom:none}
-      .result-ok{color:#22c55e}
-      .result-error{color:#ef4444}
-      .export-btn{background:linear-gradient(180deg,#3b82f6,#2563eb);margin-top:.5rem}
-      .summary-box{margin-top:1rem;padding:.75rem;background:var(--border);border-radius:8px;font-weight:bold}
+      .note{border-left:3px solid var(--primary);padding:.75rem;background:#0b1220;border-radius:8px;color:var(--muted);margin-top:1rem;font-size:0.9rem}
       .progress-bar{width:100%;height:8px;background:var(--border);border-radius:4px;margin:.5rem 0;overflow:hidden}
-      .progress-fill{height:100%;background:linear-gradient(90deg,#22c55e,#16a34a);transition:width .3s ease}
-      .processing-status{color:var(--muted);font-size:.9rem;margin:.25rem 0}
+      .progress-fill{height:100%;background:#22c55e;transition:width .3s}
+      .result-item{margin:.25rem 0;padding:.25rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+      .result-error{color:#ef4444}
+      .summary-box{margin-top:1rem;padding:.75rem;background:var(--border);border-radius:8px;font-weight:bold}
     </style>
   </head>
   <body>
     <main class="container">
-      <section class="card" aria-labelledby="csv-title">
-        <h1 id="csv-title">Subir archivo CSV</h1>
-        <p class="desc">Selecciona un archivo con extensión .csv para continuar.</p>
+      <section class="card">
+        <h1>Actualizar Sucursales (CSV)</h1>
+        <p class="desc">Sube el archivo para sincronizar inventarios en Shopify.</p>
 
-        <form id="csv-form" novalidate>
-          <label for="csvFile">Archivo CSV</label>
+        <form id="csv-form">
+          <label for="csvFile">Archivo de Inventario</label>
           <div class="file-row">
-            <input id="csvFile" name="csvFile" type="file" accept=".csv,text/csv" aria-describedby="csv-hint" required />
+            <input id="csvFile" type="file" accept=".csv" required />
             <button type="submit" id="submitBtn" disabled>Continuar</button>
           </div>
-          <div id="csv-hint" class="hint">Formatos aceptados: .csv (texto separado por comas)</div>
           <div id="fileInfo" class="file-info hidden"></div>
           <div id="csvProgress" class="hidden"></div>
           <div id="csvResults" class="hidden"></div>
         </form>
-        <div class="note">El Admin API debe apuntar a <b>mundo-jm-test.myshopify.com</b> (no al dominio custom).</div>
-      </section>
-
-      <div class="separator"></div>
-
-      <section class="card buen-fin-card" aria-labelledby="buen-fin-title">
-        <h1 id="buen-fin-title">Buen Fin - Activar Metafield</h1>
-        <p class="desc">Sube un CSV con columna "Variant SKU" para activar custom.buen_fin en esos productos.</p>
-
-        <form id="buen-fin-form" novalidate>
-          <label for="bfCsvFile">Archivo CSV (Variant SKU)</label>
-          <div class="file-row">
-            <input id="bfCsvFile" name="bfCsvFile" type="file" accept=".csv,text/csv" aria-describedby="bf-hint" required />
-            <button type="submit" id="bfSubmitBtn" disabled>Procesar</button>
-          </div>
-          <div id="bf-hint" class="hint">El CSV debe contener una columna llamada "Variant SKU"</div>
-          <div id="bfFileInfo" class="file-info hidden"></div>
-          <div id="bfResults" class="hidden"></div>
-        </form>
-        <div class="note buen-fin-note">
-          Este proceso busca cada SKU en Shopify y activa el metafield <b>custom.buen_fin = true</b> en el producto correspondiente.
-        </div>
+        <div class="note">Conectado a: <b>mundo-jm-test.myshopify.com</b></div>
       </section>
     </main>
 
     <script>
-      // ======= CONFIG FRONT =======
-      // Las credenciales ahora están en el backend (variables de entorno de Vercel)
-      // El frontend solo necesita saber la estructura, no los secretos
-      const STORE   = 'mundo-jm-test.myshopify.com'; // Solo para referencia visual
-      const VERSION = '2024-07';
       const TOP_KEY = 'sucursales';
-      // TOKEN removido - ahora está seguro en el servidor
-      // ============================
-
       const input = document.getElementById('csvFile');
-      const info  = document.getElementById('fileInfo');
-      const btn   = document.getElementById('submitBtn');
+      const btn = document.getElementById('submitBtn');
 
-      function isCsv(file){
-        if(!file) return false;
-        const nameOk = /\.csv$/i.test(file.name||'');
-        const typeOk = file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '';
-        return nameOk || typeOk;
+      // 1. Parsear CSV a Filas
+      function parseCSV(text) {
+        return text.split('\n').filter(line => line.trim() !== '').map(line => line.split(','));
       }
 
-      function parseCSV(text){
-        const rows=[]; let row=[]; let cur=''; let inQuotes=false;
-        for(let i=0;i<text.length;i++){
-          const c=text[i], n=text[i+1];
-          if(inQuotes){
-            if(c==='"' && n === '"'){ cur+='"'; i++; continue; }
-            if(c=== '"'){ inQuotes=false; continue; }
-            cur+=c;
-          }else{
-            if(c=== '"'){ inQuotes=true; continue; }
-            if(c=== ','){ row.push(cur); cur=''; continue; }
-            if(c=== '\n'){ row.push(cur); rows.push(row); row=[]; cur=''; continue; }
-            if(c=== '\r'){ continue; }
-            cur+=c;
-          }
-        }
-        if(cur.length>0 || row.length){ row.push(cur); rows.push(row); }
-        return rows;
-      }
-
-      function buildJsonFromCsv(rows){
-        if(!rows || rows.length<2) return [];
-        const header = rows[0] || [];
-        const startIdx = 12; // Columna M (donde empiezan las sucursales)
-
-        // Mapas personalizados para cada sucursal
-        const mapasPersonalizados = {
-          'WEB': '',
-          'Suc. Centro': 'https://maps.app.goo.gl/DYLcSk3kiuq8MvR69',
-          'Suc. Coyoacán': 'https://maps.app.goo.gl/wVhL3Q5FCHssQKDY9',
-          'Suc. Benito Juárez': 'https://maps.app.goo.gl/bFWnRxQWxuyKcAMJ8',
-          'Suc. Gustavo Baz': 'https://maps.app.goo.gl/85r1oTFbUcE3SPEM8',
-          'Suc. Naucalpan': 'https://maps.app.goo.gl/8mik8gVeJCyU3Jvj8',
-          'Suc. Vallejo': 'https://maps.app.goo.gl/VvLtpqGBJyr2SQWt7',
-          'Suc. Toluca': 'https://maps.app.goo.gl/xjo371LXqNiwf7pY8',
-          'Suc. Querétaro': 'https://maps.app.goo.gl/6Aw6PxJGjWCDEeXm8',
-          'Suc. Puebla': 'https://maps.app.goo.gl/vT6rAdNFiDawF6vb6'
-        };
-
-        // Construir lista de sucursales (solo nombres y mapas, una vez)
-        const sucursalesList = [];
-        for(let c=startIdx; c<header.length; c++){
-          const nombre = String(header[c] ?? '').replace(/\xa0/g, ' ').trim();
-          if(!nombre) continue;
-
-          let mapaUrl = mapasPersonalizados[nombre];
-          if (!mapaUrl) {
-            mapaUrl = `https://maps.google.com/?q=${encodeURIComponent(nombre)}`;
-          }
-          sucursalesList.push({ nombre, mapa: mapaUrl });
-        }
-
-        // Agrupar filas por handle (cada handle puede tener múltiples variantes)
-        const productosPorHandle = new Map();
-
-        for(let r=1; r<rows.length; r++){
-          const row = rows[r] || [];
-          const id = (row[0] ?? '').toString().trim();
-          const handle = (row[1] ?? '').toString().trim().toLowerCase();
-          if(!id && !handle) continue;
-
-          // Capturar opciones del producto (Option Name y Option Value)
-          const opciones = [];
-
-          // Option 1 (columnas 3 y 4)
-          const opt1Name = (row[3] ?? '').toString().trim();
-          const opt1Value = (row[4] ?? '').toString().trim();
-          if(opt1Name && opt1Value){
-            opciones.push({ nombre: opt1Name, valor: opt1Value });
-          }
-
-          // Option 2 (columnas 5 y 6)
-          const opt2Name = (row[5] ?? '').toString().trim();
-          const opt2Value = (row[6] ?? '').toString().trim();
-          if(opt2Name && opt2Value){
-            opciones.push({ nombre: opt2Name, valor: opt2Value });
-          }
-
-          // Option 3 (columnas 7 y 8)
-          const opt3Name = (row[7] ?? '').toString().trim();
-          const opt3Value = (row[8] ?? '').toString().trim();
-          if(opt3Name && opt3Value){
-            opciones.push({ nombre: opt3Name, valor: opt3Value });
-          }
-
-          // Capturar cantidades en cada sucursal (en el mismo orden que sucursalesList)
-          const cantidades = [];
-          for(let c=startIdx; c<header.length; c++){
-            const nombre = String(header[c] ?? '').replace(/\xa0/g, ' ').trim();
-            if(!nombre) continue;
-            const raw = (row[c] ?? '').toString().trim();
-            const num = raw === '' ? 0 : Number(raw.replace(/[^0-9.-]/g,''));
-            cantidades.push(Number.isFinite(num) ? num : 0);
-          }
-
-          // Agrupar por handle
-          if(!productosPorHandle.has(handle)){
-            productosPorHandle.set(handle, {
-              ID: id,
-              Handle: handle,
-              variantes: []
-            });
-          }
-
-          productosPorHandle.get(handle).variantes.push({
-            opciones,
-            cantidades
-          });
-        }
-
-        // Convertir el Map a un array de productos
-        const items = [];
-        for(const [handle, producto] of productosPorHandle){
-          items.push({
-            ID: producto.ID,
-            Handle: producto.Handle,
-            data: {
-              sucursales: sucursalesList,
-              variantes: producto.variantes
-            }
-          });
-        }
-
-        return items;
-      }
-
-      function normalizeProductId(id){
-        const s = String(id||'').trim();
+      // 2. Normalizar IDs
+      function normalizeProductId(id) {
+        const s = String(id || '').trim();
         const m = s.match(/\d+$/);
         return m ? m[0] : s;
       }
 
-      async function pushByHandle({ handle, data }){
-        const valueObj = { [TOP_KEY]: data };
-        const res = await fetch('/api/metafield_by_handle',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ handle, value: valueObj })
+      // 3. Llamadas al Backend (API)
+      async function pushByHandle({ handle, data }) {
+        const res = await fetch('/api/metafield_by_handle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ handle, value: { [TOP_KEY]: data } })
         });
-        const respData = await res.json();
-        if(!res.ok || !respData.ok) throw new Error(respData?.error || `HTTP ${res.status}`);
-        return respData;
+        return await res.json();
       }
 
-      async function pushById({ productId, data }){
-        const valueObj = { [TOP_KEY]: data };
-        const res = await fetch('/api/metafield',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ product_id: normalizeProductId(productId), value: valueObj })
+      async function pushById({ productId, data }) {
+        const res = await fetch('/api/metafield', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: normalizeProductId(productId), value: { [TOP_KEY]: data } })
         });
-        const respData = await res.json();
-        if(!res.ok || !respData.ok) throw new Error(respData?.error || `HTTP ${res.status}`);
-        return respData;
+        return await res.json();
       }
 
-      async function updateAllProductsFromCSV(rows, onProgress){
-        const items = buildJsonFromCsv(rows);
-        const results=[];
-        for(let i = 0; i < items.length; i++){
-          const it = items[i];
-          const productId = normalizeProductId(it.ID || '');
-          const handle = String(it.Handle || '').trim().toLowerCase();
-
-          if(onProgress) onProgress(i + 1, items.length, handle || productId);
-
-          try{
-            if(productId){
-              const r = await pushById({ productId, data: it.data });
-              results.push({ productId, handle, ok:true, via:'product_id', status:r.status });
-            }else if(handle){
-              const r = await pushByHandle({ handle, data: it.data });
-              results.push({ handle, ok:true, via:'handle', gid:r.gid });
-            }else{
-              results.push({ ok:false, error:'Fila sin ID ni Handle' });
-            }
-          }catch(e){
-            results.push({ ok:false, handle, productId, error:e.message });
-          }
-          await new Promise(r=>setTimeout(r, 300));
+      // 4. Transformar datos (Estructura de Sucursales)
+      function buildProductData(row, headers) {
+        const startIdx = 12; // Columna M
+        const sucursales = [];
+        const cantidades = [];
+        
+        for (let c = startIdx; c < headers.length; c++) {
+          const nombre = headers[c].trim();
+          if (!nombre) continue;
+          sucursales.push({ nombre, mapa: "" });
+          const val = row[c] ? parseInt(row[c].replace(/[^0-9]/g, '')) : 0;
+          cantidades.push(isNaN(val) ? 0 : val);
         }
-        return results;
+
+        return {
+          sucursales,
+          variantes: [{ opciones: [], cantidades }]
+        };
       }
 
-      input.addEventListener('change', ()=>{
-        const file = input.files && input.files[0];
-        if(file && isCsv(file)){
-          const sizeKB = (file.size/1024).toFixed(1);
-          info.textContent = `Seleccionado: ${file.name} (${sizeKB} KB)`;
-          info.classList.remove('hidden');
-          btn.disabled = false;
-        }else{
-          info.textContent = 'Por favor selecciona un archivo .csv válido.';
-          info.classList.remove('hidden');
-          btn.disabled = true;
-          if (input.value) input.value = '';
-        }
+      // 5. Eventos de UI
+      input.addEventListener('change', () => {
+        btn.disabled = !input.files.length;
       });
 
-      btn.addEventListener('click', async (e)=>{
+      document.getElementById('csv-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const file = input.files && input.files[0];
-        if(!file || !isCsv(file)) {
-          alert('Error: El archivo seleccionado no es válido. Por favor, selecciónalo de nuevo.');
-          return;
-        }
-
+        const file = input.files[0];
         btn.disabled = true;
+
         const csvProgress = document.getElementById('csvProgress');
         const csvResults = document.getElementById('csvResults');
+        csvProgress.classList.remove('hidden');
+        csvResults.classList.remove('hidden');
+        csvResults.innerHTML = "Procesando...";
 
-        try{
+        try {
           const text = await file.text();
           const rows = parseCSV(text);
-          const items = buildJsonFromCsv(rows);
-          console.log('[JSON] Transformado. Total productos:', items.length);
-
-          // Guardar CSV crudo
-          const fd = new FormData(); fd.append('file', file, file.name);
-          const up = await fetch('/api/upload',{ method:'POST', body:fd });
-          const upData = await up.json();
-          if(!up.ok || !upData.ok) throw new Error(upData.error || `Error ${up.status} al guardar CSV`);
-
-          // Mostrar barra de progreso
-          csvProgress.classList.remove('hidden');
-          csvProgress.innerHTML = `
-            <div class="processing-status">Preparando...</div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:0%"></div>
-            </div>
-          `;
-          csvResults.classList.remove('hidden');
-          csvResults.innerHTML = '';
-
-          const progressFill = csvProgress.querySelector('.progress-fill');
-          const statusText = csvProgress.querySelector('.processing-status');
-
-          // Actualizar con barra de progreso
-          const results = await updateAllProductsFromCSV(rows, (current, total, identifier) => {
-            const pct = Math.round((current / total) * 100);
-            statusText.textContent = `Procesando ${current} de ${total} productos... (${pct}%)`;
-            progressFill.style.width = `${pct}%`;
-          });
-
-          console.log('[Shopify] Resultados:', results);
-
-          // Mostrar resultados
-          const okCount = results.filter(r=>r.ok).length;
-          const failCount = results.filter(r=>!r.ok).length;
-
-          csvProgress.innerHTML = `
-            <div class="processing-status" style="color:#22c55e">Completado: ${okCount}/${results.length} productos actualizados</div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:100%"></div>
-            </div>
-          `;
-
-          // Mostrar resumen en csvResults
-          let resultsHtml = `<div class="summary-box">
-            Resumen: <span style="color:#22c55e">${okCount} exitosos</span>,
-            <span style="color:#ef4444">${failCount} fallidos</span> de ${results.length} total
-          </div>`;
-
-          // Mostrar errores si hay
-          if(failCount > 0){
-            resultsHtml += '<div style="margin-top:.5rem;max-height:200px;overflow-y:auto">';
-            results.filter(r=>!r.ok).forEach(r => {
-              resultsHtml += `<div class="result-item result-error">✗ ${r.handle || r.productId} - ${r.error}</div>`;
-            });
-            resultsHtml += '</div>';
-          }
-
-          csvResults.innerHTML = resultsHtml;
-
-          alert(failCount > 0
-            ? `Actualizados ${okCount}/${results.length}. Fallaron ${failCount} (ver detalles abajo).`
-            : `¡Listo! Actualizados ${okCount}/${results.length} productos.`);
-
-          // Limpiar input
-          input.value = '';
-          btn.disabled = true;
-          info.textContent = 'Proceso completado. Selecciona un nuevo archivo para comenzar de nuevo.';
-
-        }catch(err){
-          alert('Fallo: ' + (err?.message || err));
-          csvProgress.classList.add('hidden');
-          btn.disabled = false;
-        }
-      });
-
-      // ============ BUEN FIN FUNCTIONALITY ============
-      const bfInput = document.getElementById('bfCsvFile');
-      const bfInfo = document.getElementById('bfFileInfo');
-      const bfBtn = document.getElementById('bfSubmitBtn');
-      const bfResults = document.getElementById('bfResults');
-
-      bfInput.addEventListener('change', ()=>{
-        const file = bfInput.files && bfInput.files[0];
-        if(file && isCsv(file)){
-          const sizeKB = (file.size/1024).toFixed(1);
-          bfInfo.textContent = `Seleccionado: ${file.name} (${sizeKB} KB)`;
-          bfInfo.classList.remove('hidden');
-          bfBtn.disabled = false;
-        }else{
-          bfInfo.textContent = 'Por favor selecciona un archivo .csv válido.';
-          bfInfo.classList.remove('hidden');
-          bfBtn.disabled = true;
-          if (bfInput.value) bfInput.value = '';
-        }
-      });
-
-      function parseBuenFinCSV(text){
-        const rows = parseCSV(text);
-        if(!rows || rows.length < 2) return [];
-
-        const header = rows[0].map(h => h.trim());
-        const skuColIndex = header.findIndex(h => h.toLowerCase() === 'variant sku');
-
-        if(skuColIndex === -1){
-          throw new Error('No se encontró la columna "Variant SKU" en el CSV');
-        }
-
-        const skus = [];
-        for(let i = 1; i < rows.length; i++){
-          const sku = (rows[i][skuColIndex] || '').toString().trim();
-          if(sku) skus.push(sku);
-        }
-        return skus;
-      }
-
-      async function setBuenFinMetafield(sku){
-        const res = await fetch('/api/buen_fin_by_sku',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ sku: sku })
-        });
-        const respData = await res.json();
-        if(!res.ok || !respData.ok){
-          throw new Error(respData?.error || `HTTP ${res.status}`);
-        }
-        return respData;
-      }
-
-      bfBtn.addEventListener('click', async (e)=>{
-        e.preventDefault();
-        const file = bfInput.files && bfInput.files[0];
-        if(!file || !isCsv(file)) {
-          alert('Error: El archivo seleccionado no es válido. Por favor, selecciónalo de nuevo.');
-          return;
-        }
-
-        bfBtn.disabled = true;
-        bfResults.innerHTML = '';
-        bfResults.classList.remove('hidden');
-
-        try{
-          const text = await file.text();
-          const skus = parseBuenFinCSV(text);
-
-          if(skus.length === 0){
-            throw new Error('No se encontraron SKUs en el archivo CSV');
-          }
-
-          // Crear barra de progreso
-          const progressContainer = document.createElement('div');
-          progressContainer.innerHTML = `
-            <div class="processing-status">Procesando 0 de ${skus.length} SKUs...</div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:0%"></div>
-            </div>
-          `;
-          bfResults.appendChild(progressContainer);
-
-          const progressFill = progressContainer.querySelector('.progress-fill');
-          const statusText = progressContainer.querySelector('.processing-status');
-
+          const headers = rows[0];
           const results = [];
-          for(let i = 0; i < skus.length; i++){
-            const sku = skus[i];
-            const progress = Math.round(((i + 1) / skus.length) * 100);
 
-            // Actualizar progreso
-            statusText.textContent = `Procesando ${i + 1} de ${skus.length} SKUs... (${progress}%)`;
-            progressFill.style.width = `${progress}%`;
+          csvProgress.innerHTML = `<div class="progress-bar"><div class="progress-fill" id="fill" style="width:0%"></div></div>`;
+          const fill = document.getElementById('fill');
 
-            try{
-              const result = await setBuenFinMetafield(sku);
-              results.push({ sku, ok: true, productGid: result.product_gid, http: result.http });
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const id = row[0];
+            const handle = row[1]?.trim().toLowerCase();
+            const data = buildProductData(row, headers);
 
-              // Actualizar UI con estrategia de búsqueda
-              const resultDiv = document.createElement('div');
-              resultDiv.className = 'result-item result-ok';
-              const strategy = result.http?.matched_strategy || 'unknown';
-              const strategyEmoji = strategy === 'exact' ? '🎯' : strategy === 'prefix' ? '🔍' : strategy === 'rest_api' ? '🔧' : '✓';
-              resultDiv.textContent = `${strategyEmoji} ${sku} - Metafield activado`;
-              if(strategy !== 'exact') {
-                resultDiv.title = `Encontrado con estrategia: ${strategy}`;
+            try {
+              let r;
+              if (id && id.length > 5) {
+                r = await pushById({ productId: id, data });
+              } else if (handle) {
+                r = await pushByHandle({ handle, data });
               }
-              bfResults.appendChild(resultDiv);
-
-            }catch(err){
-              results.push({ sku, ok: false, error: err.message });
-
-              // Actualizar UI
-              const resultDiv = document.createElement('div');
-              resultDiv.className = 'result-item result-error';
-              resultDiv.textContent = `✗ ${sku} - Error: ${err.message}`;
-              bfResults.appendChild(resultDiv);
+              results.push({ ok: true, item: handle || id });
+            } catch (err) {
+              results.push({ ok: false, item: handle || id, error: err.message });
             }
 
-            // Scroll al final para ver el último resultado
-            bfResults.scrollTop = bfResults.scrollHeight;
-
-            // Rate limiting
-            await new Promise(r=>setTimeout(r, 300));
+            fill.style.width = `${(i / (rows.length - 1)) * 100}%`;
           }
 
-          // Remover barra de progreso al terminar
-          progressContainer.remove();
-
-          const okCount = results.filter(r=>r.ok).length;
-          const failCount = results.filter(r=>!r.ok).length;
-
-          console.log('[Buen Fin] Resultados completos:', results);
-
-          const summaryDiv = document.createElement('div');
-          summaryDiv.className = 'summary-box';
-          summaryDiv.innerHTML = `
-            Resumen: <span style="color:#22c55e">${okCount} exitosos</span>,
-            <span style="color:#ef4444">${failCount} fallidos</span> de ${skus.length} total
+          const fails = results.filter(r => !r.ok);
+          csvResults.innerHTML = `
+            <div class="summary-box">
+              Finalizado: ${results.length - fails.length} OK, ${fails.length} Errores.
+            </div>
+            ${fails.map(f => `<div class="result-item result-error">✗ ${f.item}: ${f.error}</div>`).join('')}
           `;
 
-          // Botón para exportar SKUs fallidos
-          if(failCount > 0){
-            const exportBtn = document.createElement('button');
-            exportBtn.textContent = `Exportar ${failCount} SKUs Fallidos a CSV`;
-            exportBtn.className = 'export-btn';
-            exportBtn.onclick = () => {
-              const failedSkus = results.filter(r => !r.ok);
-              const csvContent = 'Variant SKU,Error\n' +
-                failedSkus.map(r => `${r.sku},"${r.error}"`).join('\n');
-
-              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-              const link = document.createElement('a');
-              const url = URL.createObjectURL(blob);
-              link.setAttribute('href', url);
-              link.setAttribute('download', `skus-fallidos-${Date.now()}.csv`);
-              link.style.visibility = 'hidden';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            };
-            summaryDiv.appendChild(exportBtn);
-          }
-
-          bfResults.insertBefore(summaryDiv, bfResults.firstChild);
-
-          alert(failCount > 0
-            ? `Proceso completado: ${okCount}/${skus.length} exitosos. ${failCount} fallidos.\n\nPuedes exportar los SKUs fallidos usando el botón azul.`
-            : `¡Listo! Se activó el metafield en ${okCount}/${skus.length} productos.`);
-
-          // Limpiar input
-          bfInput.value = '';
-          bfBtn.disabled = true;
-          bfInfo.textContent = 'Proceso completado. Selecciona un nuevo archivo para comenzar de nuevo.';
-
-        }catch(err){
-          bfResults.innerHTML = `<div class="result-error">Error: ${err.message}</div>`;
-          alert('Fallo: ' + (err?.message || err));
-          bfBtn.disabled = false;
+        } catch (err) {
+          alert("Error crítico: " + err.message);
+        } finally {
+          btn.disabled = false;
         }
       });
     </script>
