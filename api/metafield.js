@@ -8,12 +8,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Método no permitido' });
 
   try {
-    const { handle, sku, cambios } = req.body;
+    const { handle, opciones, cambios } = req.body;
 
-    if (!handle || !sku || !cambios)
+    if (!handle || !opciones || !cambios)
       return res.status(400).json({ ok: false, error: 'Datos incompletos' });
 
-    /* ================= CONFIG ================= */
     const SHOP = 'mundoin.mx';
     const ADMIN = 'mundo-in.myshopify.com';
     const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
@@ -31,13 +30,12 @@ export default async function handler(req, res) {
       return r.json();
     };
 
-    /* ========== 1. PRODUCTO POR HANDLE ========= */
+    /* === PRODUCTO === */
     const productRes = await gql(`
       query ($handle: String!) {
         productByHandle(handle: $handle) {
           id
           metafield(namespace:"custom", key:"sucursales") {
-            id
             value
           }
         }
@@ -48,40 +46,33 @@ export default async function handler(req, res) {
     if (!product)
       return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
 
-    /* ========== 2. METAFIELD ACTUAL ============= */
-    let data = product.metafield
-      ? JSON.parse(product.metafield.value)
-      : null;
+    let data = JSON.parse(product.metafield.value);
 
-    if (!data || !data.sucursales || !data.variantes)
-      return res.status(400).json({ ok: false, error: 'Metafield inválido' });
-
-    /* ========== 3. MAPA DE SUCURSALES =========== */
     const SUCS = data.sucursales.map(s => s.nombre);
 
-    /* ========== 4. VARIANTE POR SKU ============= */
+    /* === BUSCAR VARIANTE POR OPCIONES === */
     const variante = data.variantes.find(v =>
-      v.sku === sku ||
-      v.opciones?.some(o => o.valor === sku) // fallback
+      opciones.every(o =>
+        v.opciones.some(vo => vo.nombre === o.nombre && vo.valor === o.valor)
+      )
     );
 
     if (!variante)
       return res.status(404).json({ ok: false, error: 'Variante no encontrada' });
 
-    /* ========== 5. MERGE DE STOCK =============== */
-    variante.cantidades = variante.cantidades || Array(SUCS.length).fill(0);
+    variante.cantidades ||= Array(SUCS.length).fill(0);
 
-    Object.entries(cambios).forEach(([nombre, valor]) => {
-      const idx = SUCS.indexOf(nombre);
+    /* === MERGE SOLO CAMBIOS === */
+    Object.entries(cambios).forEach(([sucursal, valor]) => {
+      const idx = SUCS.indexOf(sucursal);
       if (idx === -1) return;
 
-      // SOLO guardar si viene definido (permite 0)
-      if (valor !== '' && valor !== null && valor !== undefined) {
+      if (valor !== null && valor !== undefined && valor !== '') {
         variante.cantidades[idx] = Number(valor);
       }
     });
 
-    /* ========== 6. GUARDAR METAFIELD ============ */
+    /* === GUARDAR === */
     const save = await gql(`
       mutation ($mf: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $mf) {
