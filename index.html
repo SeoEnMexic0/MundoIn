@@ -1,199 +1,182 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<title>MundoIn — Sincronizador Sucursales</title>
+<meta charset="utf-8">
+<title>Mundo IN — Inventario Multisede</title>
 
 <style>
-:root {
+:root{
   --bg:#0f172a;
   --panel:#111827;
   --text:#e5e7eb;
   --primary:#22c55e;
+  --danger:#ef4444;
   --border:#1f2937;
 }
+*{box-sizing:border-box}
 body{
   margin:0;
   font-family:system-ui,-apple-system,sans-serif;
   background:var(--bg);
   color:var(--text);
-  display:flex;
-  justify-content:center;
   padding:40px;
 }
 .card{
+  max-width:1200px;
+  margin:auto;
   background:var(--panel);
   border:1px solid var(--border);
   border-radius:16px;
-  padding:2rem;
-  width:100%;
-  max-width:640px;
+  padding:24px;
 }
-h2{text-align:center;margin:0 0 10px}
-p{text-align:center;color:#94a3b8;margin-bottom:20px}
-input[type=file]{
-  width:100%;
-  padding:12px;
-  background:#020617;
-  border:1px dashed #334155;
-  border-radius:8px;
-  color:white;
+h2{text-align:center;margin-top:0}
+
+.controls{
+  display:flex;
+  gap:10px;
+  justify-content:center;
   margin-bottom:20px;
 }
+input{
+  background:#020617;
+  color:white;
+  border:1px solid #334155;
+  border-radius:6px;
+  padding:6px 8px;
+}
 button{
-  width:100%;
-  padding:14px;
-  border-radius:8px;
+  padding:10px 16px;
   border:none;
+  border-radius:8px;
   font-weight:bold;
-  background:var(--primary);
   cursor:pointer;
 }
-button:disabled{opacity:.5}
+.green{background:var(--primary);color:black}
+.red{background:var(--danger);color:white}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+th,td{
+  border:1px solid var(--border);
+  padding:6px;
+  text-align:center;
+}
+th{background:#020617}
+
 #log{
   margin-top:20px;
   background:black;
-  padding:15px;
   border-radius:8px;
-  max-height:360px;
-  overflow:auto;
+  padding:12px;
   font-family:monospace;
   font-size:13px;
+  max-height:260px;
+  overflow:auto;
 }
-.green{color:#22c55e}
-.red{color:#ef4444}
-.blue{color:#3b82f6}
-.yellow{color:#eab308}
 </style>
 </head>
 
 <body>
+
 <div class="card">
-  <h2>Sincronizador MundoIn</h2>
-  <p>Metafield destino: <b>custom.sucursales</b></p>
+  <h2>Inventario Multisede — Mundo IN</h2>
 
-  <input type="file" id="csvFile" accept=".csv" />
-  <button id="btn">Iniciar sincronización</button>
+  <div class="controls">
+    <input id="handle" placeholder="handle del producto (ej. cama-luton)" style="width:300px">
+    <button class="green" onclick="addRow()">+ Variante</button>
+    <button class="green" onclick="sync()">Sincronizar</button>
+  </div>
 
-  <div id="log">Esperando CSV…</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Tamaño</th>
+        <th>Color</th>
+        <th>SKU</th>
+        <th>Centro</th>
+        <th>Coyoacán</th>
+        <th>Benito Juárez</th>
+        <th>Gustavo Baz</th>
+        <th>Naucalpan</th>
+        <th>Toluca</th>
+        <th>Querétaro</th>
+        <th>Vallejo</th>
+        <th>Puebla</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div id="log">Listo.</div>
 </div>
 
 <script>
-const btn = document.getElementById('btn');
-const log = document.getElementById('log');
+const sucursales=[
+ "Centro","Coyoacán","Benito Juárez","Gustavo Baz",
+ "Naucalpan","Toluca","Querétaro","Vallejo","Puebla"
+];
 
-function addLog(msg, color='') {
-  const d = document.createElement('div');
-  d.className = color;
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  log.prepend(d);
+function log(msg,color=""){
+  const d=document.createElement("div");
+  d.textContent=`[${new Date().toLocaleTimeString()}] ${msg}`;
+  if(color)d.style.color=color;
+  document.getElementById("log").prepend(d);
 }
 
-btn.onclick = async () => {
-  const file = document.getElementById('csvFile').files[0];
-  if (!file) return alert('Selecciona un CSV');
+function addRow(){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input></td>
+    <td><input></td>
+    <td><input></td>
+    ${sucursales.map(()=>`<td><input type="number" min="0" value="0" style="width:70px"></td>`).join("")}
+    <td><button class="red" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  document.getElementById("tbody").appendChild(tr);
+}
 
-  btn.disabled = true;
-  log.innerHTML = '';
-  addLog('Leyendo archivo...', 'blue');
+async function sync(){
+  const handle=document.getElementById("handle").value.trim();
+  if(!handle)return alert("Pon el handle del producto");
 
-  try {
-    const text = await file.text();
-    const clean = text.replace(/\uFEFF/g,'').trim();
-    const lines = clean.split(/\r?\n/).filter(Boolean);
+  const rows=[...document.querySelectorAll("#tbody tr")];
+  if(!rows.length)return alert("Agrega al menos una variante");
 
-    if (lines.length < 2) throw new Error('CSV vacío');
-
-    const headers = lines[0].split(',').map(h=>h.trim());
-    const rows = lines.slice(1);
-
-    const idx = {
-      id: headers.indexOf('ID'),
-      handle: headers.indexOf('Handle'),
-      opt1: headers.indexOf('Option1 Value'),
-      opt2: headers.indexOf('Option2 Value'),
-      sku: headers.indexOf('SKU'),
-      web: headers.indexOf('WEB')
+  const variantes=rows.map(r=>{
+    const i=[...r.querySelectorAll("input")];
+    const v={
+      size:i[0].value,
+      color:i[1].value,
+      sku:i[2].value,
+      sucursales:{}
     };
-
-    if (idx.web === -1) throw new Error('No existe columna WEB');
-
-    const sucHeaders = headers.slice(idx.web);
-
-    addLog(`Columnas de sucursales detectadas: ${sucHeaders.length}`, 'yellow');
-
-    const productos = {};
-
-    rows.forEach(line => {
-      const c = line.split(',').map(v=>v.trim());
-      const handle = c[idx.handle];
-      if (!handle) return;
-
-      if (!productos[handle]) {
-        productos[handle] = {
-          handle,
-          sucursales: sucHeaders.map(s => ({
-            nombre: s,
-            mapa: `https://www.google.com/maps/search/${encodeURIComponent(s)}`
-          })),
-          variantes: []
-        };
-      }
-
-      const cantidades = sucHeaders.map((_,i)=>{
-        const v = parseInt(c[idx.web + i] || 0);
-        return isNaN(v) ? 0 : v;
-      });
-
-      productos[handle].variantes.push({
-        opciones: [
-          { nombre:'Tamaño', valor: c[idx.opt1] || '' },
-          { nombre:'Color', valor: c[idx.opt2] || '' }
-        ],
-        sku: c[idx.sku] || '',
-        cantidades
-      });
+    sucursales.forEach((s,idx)=>{
+      v.sucursales[s]=parseInt(i[3+idx].value||0);
     });
+    return v;
+  });
 
-    const total = Object.keys(productos).length;
-    addLog(`Productos listos: ${total}`, 'yellow');
+  log(`Enviando ${variantes.length} variantes…`,"#3b82f6");
 
-    for (const handle in productos) {
-      addLog(`→ ${handle}`, 'blue');
+  const res=await fetch("/api/sync_metafield",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({handle,variantes})
+  });
 
-      const payload = {
-        sucursales: productos[handle].sucursales,
-        variantes: productos[handle].variantes
-      };
-
-      const res = await fetch('/api/metafield', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          handle,
-          value: payload
-        })
-      });
-
-      const j = await res.json();
-      if (!j.ok) {
-        addLog(`✗ ${handle}: ${j.error}`, 'red');
-      } else {
-        addLog(`✓ ${handle}: OK`, 'green');
-      }
-
-      await new Promise(r=>setTimeout(r,600));
-    }
-
-    addLog('SINCRONIZACIÓN TERMINADA', 'green');
-
-  } catch (e) {
-    addLog(`ERROR: ${e.message}`, 'red');
-    console.error(e);
-  } finally {
-    btn.disabled = false;
+  const data=await res.json();
+  if(data.ok){
+    log("✓ Sincronización correcta","#22c55e");
+  }else{
+    log("✗ Error: "+data.error,"#ef4444");
   }
-};
+}
+
+addRow();
 </script>
+
 </body>
 </html>
