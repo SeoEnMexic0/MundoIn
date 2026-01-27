@@ -1,42 +1,93 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <title>MundoIn — Sincronizador Maestro v9</title>
-  <style>
-    :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
-    body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px}
-    h2{text-align:center}
-    input,button{width:100%;padding:12px;margin-top:10px}
-    button{background:var(--primary);border:none;color:white;font-weight:bold;border-radius:8px}
-    #log{margin-top:20px;background:black;padding:15px;border-radius:8px;font-family:monospace;max-height:300px;overflow:auto}
-    .green{color:#22c55e} .red{color:#ef4444} .blue{color:#3b82f6}
-  </style>
+<meta charset="utf-8" />
+<title>MundoIn — Sincronizador Sucursales</title>
+
+<style>
+:root {
+  --bg:#0f172a;
+  --panel:#111827;
+  --text:#e5e7eb;
+  --primary:#22c55e;
+  --border:#1f2937;
+}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  justify-content:center;
+  padding:40px;
+}
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:2rem;
+  width:100%;
+  max-width:640px;
+}
+h2{text-align:center;margin:0 0 10px}
+p{text-align:center;color:#94a3b8;margin-bottom:20px}
+input[type=file]{
+  width:100%;
+  padding:12px;
+  background:#020617;
+  border:1px dashed #334155;
+  border-radius:8px;
+  color:white;
+  margin-bottom:20px;
+}
+button{
+  width:100%;
+  padding:14px;
+  border-radius:8px;
+  border:none;
+  font-weight:bold;
+  background:var(--primary);
+  cursor:pointer;
+}
+button:disabled{opacity:.5}
+#log{
+  margin-top:20px;
+  background:black;
+  padding:15px;
+  border-radius:8px;
+  max-height:360px;
+  overflow:auto;
+  font-family:monospace;
+  font-size:13px;
+}
+.green{color:#22c55e}
+.red{color:#ef4444}
+.blue{color:#3b82f6}
+.yellow{color:#eab308}
+</style>
 </head>
+
 <body>
-  <div class="card">
-    <h2>Sincronizador MundoIn v9</h2>
-    <input type="file" id="csvFile" accept=".csv" />
-    <button id="btn">Iniciar</button>
-    <div id="log">Esperando CSV…</div>
-  </div>
+<div class="card">
+  <h2>Sincronizador MundoIn</h2>
+  <p>Metafield destino: <b>custom.sucursales</b></p>
+
+  <input type="file" id="csvFile" accept=".csv" />
+  <button id="btn">Iniciar sincronización</button>
+
+  <div id="log">Esperando CSV…</div>
+</div>
 
 <script>
 const btn = document.getElementById('btn');
 const log = document.getElementById('log');
 
-const addLog = (msg, c='') => {
+function addLog(msg, color='') {
   const d = document.createElement('div');
-  d.className = c;
+  d.className = color;
   d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   log.prepend(d);
-};
-
-const normalize = s =>
-  s.toUpperCase()
-   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-   .replace(/[^A-Z0-9_]/g,'');
+}
 
 btn.onclick = async () => {
   const file = document.getElementById('csvFile').files[0];
@@ -47,66 +98,97 @@ btn.onclick = async () => {
   addLog('Leyendo archivo...', 'blue');
 
   try {
-    const text = (await file.text()).replace(/\uFEFF/g,'');
-    const lines = text.split(/\r?\n/).filter(Boolean);
+    const text = await file.text();
+    const clean = text.replace(/\uFEFF/g,'').trim();
+    const lines = clean.split(/\r?\n/).filter(Boolean);
 
-    const rawHeaders = lines[0].split(',');
-    const headers = rawHeaders.map(normalize);
+    if (lines.length < 2) throw new Error('CSV vacío');
 
-    const idx = name => headers.indexOf(name);
-
-    if (idx('HANDLE') === -1)
-      throw new Error('Falta columna HANDLE');
-
-    const sucCols = headers
-      .map((h,i)=>h.startsWith('SUC_') ? i : -1)
-      .filter(i=>i!==-1);
-
-    if (!sucCols.length)
-      throw new Error('No hay columnas suc_*');
-
-    addLog(`Columnas de sucursales detectadas: ${sucCols.length}`, 'blue');
-
+    const headers = lines[0].split(',').map(h=>h.trim());
     const rows = lines.slice(1);
 
-    for (const line of rows) {
-      const c = line.split(',');
+    const idx = {
+      id: headers.indexOf('ID'),
+      handle: headers.indexOf('Handle'),
+      opt1: headers.indexOf('Option1 Value'),
+      opt2: headers.indexOf('Option2 Value'),
+      sku: headers.indexOf('SKU'),
+      web: headers.indexOf('WEB')
+    };
 
-      const payload = {
-        handle: c[idx('HANDLE')],
-        option1: c[idx('OPTION1')] || null,
-        option2: c[idx('OPTION2')] || null,
-        sku: c[idx('SKU')] || null,
-        sucursales: {}
-      };
+    if (idx.web === -1) throw new Error('No existe columna WEB');
 
-      sucCols.forEach(i=>{
-        payload.sucursales[
-          headers[i].replace('SUC_','').toLowerCase()
-        ] = Number(c[i]||0);
-      });
+    const sucHeaders = headers.slice(idx.web);
 
-      addLog(`→ ${payload.handle} (${payload.sku})`, 'blue');
+    addLog(`Columnas de sucursales detectadas: ${sucHeaders.length}`, 'yellow');
 
-      const r = await fetch('/api/metafield', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
-      });
+    const productos = {};
 
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(t);
+    rows.forEach(line => {
+      const c = line.split(',').map(v=>v.trim());
+      const handle = c[idx.handle];
+      if (!handle) return;
+
+      if (!productos[handle]) {
+        productos[handle] = {
+          handle,
+          sucursales: sucHeaders.map(s => ({
+            nombre: s,
+            mapa: `https://www.google.com/maps/search/${encodeURIComponent(s)}`
+          })),
+          variantes: []
+        };
       }
 
-      addLog(`✓ OK ${payload.sku}`, 'green');
-      await new Promise(r=>setTimeout(r,500));
+      const cantidades = sucHeaders.map((_,i)=>{
+        const v = parseInt(c[idx.web + i] || 0);
+        return isNaN(v) ? 0 : v;
+      });
+
+      productos[handle].variantes.push({
+        opciones: [
+          { nombre:'Tamaño', valor: c[idx.opt1] || '' },
+          { nombre:'Color', valor: c[idx.opt2] || '' }
+        ],
+        sku: c[idx.sku] || '',
+        cantidades
+      });
+    });
+
+    const total = Object.keys(productos).length;
+    addLog(`Productos listos: ${total}`, 'yellow');
+
+    for (const handle in productos) {
+      addLog(`→ ${handle}`, 'blue');
+
+      const payload = {
+        sucursales: productos[handle].sucursales,
+        variantes: productos[handle].variantes
+      };
+
+      const res = await fetch('/api/metafield', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          handle,
+          value: payload
+        })
+      });
+
+      const j = await res.json();
+      if (!j.ok) {
+        addLog(`✗ ${handle}: ${j.error}`, 'red');
+      } else {
+        addLog(`✓ ${handle}: OK`, 'green');
+      }
+
+      await new Promise(r=>setTimeout(r,600));
     }
 
     addLog('SINCRONIZACIÓN TERMINADA', 'green');
 
   } catch (e) {
-    addLog('ERROR: ' + e.message, 'red');
+    addLog(`ERROR: ${e.message}`, 'red');
     console.error(e);
   } finally {
     btn.disabled = false;
