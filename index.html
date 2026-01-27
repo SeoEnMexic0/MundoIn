@@ -1,154 +1,117 @@
 <!doctype html>
 <html lang="es">
 <head>
-    <meta charset="utf-8" />
-    <title>MundoIn — Sincronizador Maestro v8</title>
-    <style>
-        :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
-        body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
-        .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)}
-        h2{margin:0 0 10px;text-align:center;color:#fff}
-        p{text-align:center;color:#94a3b8;font-size:0.9rem;margin-bottom:20px}
-        input[type="file"]{width:100%;padding:12px;background:#0b1220;color:white;border:1px dashed #334155;border-radius:8px;margin-bottom:20px}
-        button{background:var(--primary);color:white;border:none;padding:14px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%;font-size:1rem}
-        button:disabled{opacity:0.5;cursor:not-allowed}
-        #log{margin-top:20px;font-size:0.85rem;background:black;padding:15px;border-radius:8px;max-height:350px;overflow-y:auto;border:1px solid #1e293b;font-family:monospace}
-        .green{color:#22c55e} .red{color:#ef4444} .yellow{color:#eab308} .blue{color:#3b82f6}
-    </style>
+  <meta charset="utf-8" />
+  <title>MundoIn — Sincronizador Maestro v9</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --primary:#22c55e; --border:#1f2937; }
+    body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:40px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:600px}
+    h2{text-align:center}
+    input,button{width:100%;padding:12px;margin-top:10px}
+    button{background:var(--primary);border:none;color:white;font-weight:bold;border-radius:8px}
+    #log{margin-top:20px;background:black;padding:15px;border-radius:8px;font-family:monospace;max-height:300px;overflow:auto}
+    .green{color:#22c55e} .red{color:#ef4444} .blue{color:#3b82f6}
+  </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Sincronizador MundoIn v8</h2>
-        <p>Enviando a: <b>custom.sucursales</b></p>
-        <input type="file" id="csvFile" accept=".csv" />
-        <button id="btnStart">Iniciar Sincronización</button>
-        <div id="log">> Esperando archivo CSV...</div>
-    </div>
+  <div class="card">
+    <h2>Sincronizador MundoIn v9</h2>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button id="btn">Iniciar</button>
+    <div id="log">Esperando CSV…</div>
+  </div>
 
-    <script>
-        const btn = document.getElementById('btnStart');
-        const log = document.getElementById('log');
+<script>
+const btn = document.getElementById('btn');
+const log = document.getElementById('log');
 
-        function addLog(msg, color='') {
-            const div = document.createElement('div');
-            div.className = color;
-            div.style.marginBottom = '5px';
-            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            log.prepend(div);
-        }
+const addLog = (msg, c='') => {
+  const d = document.createElement('div');
+  d.className = c;
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.prepend(d);
+};
 
-        btn.onclick = async () => {
-            const file = document.getElementById('csvFile').files[0];
-            if(!file) return alert("Por favor selecciona un archivo .csv");
-            
-            btn.disabled = true;
-            log.innerHTML = '';
-            addLog("Iniciando lectura del archivo...", "blue");
+const normalize = s =>
+  s.toUpperCase()
+   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .replace(/[^A-Z0-9_]/g,'');
 
-            try {
-                const text = await file.text();
-                const cleanText = text.replace(/\uFEFF/g, '').trim(); 
-                const lines = cleanText.split(/\r?\n/).filter(l => l.trim() !== '');
-                
-                if (lines.length < 2) throw new Error("El archivo está vacío o tiene un formato incorrecto.");
+btn.onclick = async () => {
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) return alert('Selecciona un CSV');
 
-                const headers = lines[0].split(',').map(h => h.trim());
-                const rows = lines.slice(1);
-                const webIdx = headers.findIndex(h => h.toUpperCase() === 'WEB');
+  btn.disabled = true;
+  log.innerHTML = '';
+  addLog('Leyendo archivo...', 'blue');
 
-                if (webIdx === -1) throw new Error("No se encontró la columna 'WEB' en el CSV.");
+  try {
+    const text = (await file.text()).replace(/\uFEFF/g,'');
+    const lines = text.split(/\r?\n/).filter(Boolean);
 
-                const productos = {};
+    const rawHeaders = lines[0].split(',');
+    const headers = rawHeaders.map(normalize);
 
-                // 1. Agrupar variantes por Handle
-                rows.forEach((line, idx) => {
-                    const row = line.split(',').map(c => c.trim());
-                    if (row.length < webIdx) return;
-                    
-                    const id = row[0];
-                    const handle = row[1];
-                    const key = handle || id;
+    const idx = name => headers.indexOf(name);
 
-                    if (!productos[key]) {
-                        const sList = [];
-                        for (let i = webIdx; i < headers.length; i++) {
-                            sList.push({ 
-                                nombre: headers[i], 
-                                mapa: `https://www.google.com/maps/search/${encodeURIComponent(headers[i])}` 
-                            });
-                        }
-                        productos[key] = { id, handle, sucursales: sList, variantes: [] };
-                    }
+    if (idx('HANDLE') === -1)
+      throw new Error('Falta columna HANDLE');
 
-                    const cantidades = [];
-                    for (let i = webIdx; i < headers.length; i++) {
-                        const val = parseInt(row[i].replace(/[^0-9]/g, '') || 0);
-                        cantidades.push(val);
-                    }
+    const sucCols = headers
+      .map((h,i)=>h.startsWith('SUC_') ? i : -1)
+      .filter(i=>i!==-1);
 
-                    productos[key].variantes.push({
-                        opciones: [
-                            { nombre: "Tamaño", valor: row[4] || "" },
-                            { nombre: "Color", valor: row[6] || "" }
-                        ],
-                        cantidades: cantidades
-                    });
-                });
+    if (!sucCols.length)
+      throw new Error('No hay columnas suc_*');
 
-                const total = Object.keys(productos).length;
-                addLog(`Archivo procesado. Enviando ${total} productos...`, "yellow");
+    addLog(`Columnas de sucursales detectadas: ${sucCols.length}`, 'blue');
 
-                // 2. Enviar a la API
-                for (const key in productos) {
-                    const p = productos[key];
-                    const isRealId = p.id && p.id.length > 12;
-                    
-                    const finalPayload = {
-                        sucursales: {
-                            sucursales: p.sucursales,
-                            variantes: p.variantes
-                        }
-                    };
+    const rows = lines.slice(1);
 
-                    addLog(`Conectando con Shopify para: ${p.handle}...`, "blue");
+    for (const line of rows) {
+      const c = line.split(',');
 
-                    const endpoint = isRealId ? '/api/metafield' : '/api/metafield_by_handle';
-                    
-                    try {
-                        const response = await fetch(endpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                handle: p.handle,
-                                product_id: isRealId ? p.id : null,
-                                value: JSON.stringify(finalPayload)
-                            })
-                        });
+      const payload = {
+        handle: c[idx('HANDLE')],
+        option1: c[idx('OPTION1')] || null,
+        option2: c[idx('OPTION2')] || null,
+        sku: c[idx('SKU')] || null,
+        sucursales: {}
+      };
 
-                        // Verificamos si la respuesta es exitosa (200 OK)
-                        if (response.ok) {
-                            const data = await response.json();
-                            addLog(`✓ ${p.handle}: Sincronizado correctamente.`, "green");
-                        } else {
-                            const errorText = await response.text();
-                            addLog(`✗ ${p.handle}: Error del servidor (${response.status})`, "red");
-                            console.error("Error detalle:", errorText);
-                        }
-                    } catch (fetchErr) {
-                        addLog(`✗ ${p.handle}: Error de conexión: ${fetchErr.message}`, "red");
-                    }
-                    
-                    await new Promise(r => setTimeout(r, 600)); 
-                }
-                addLog("--- SINCRONIZACIÓN FINALIZADA ---", "green");
+      sucCols.forEach(i=>{
+        payload.sucursales[
+          headers[i].replace('SUC_','').toLowerCase()
+        ] = Number(c[i]||0);
+      });
 
-            } catch (e) {
-                addLog("ERROR CRÍTICO: " + e.message, "red");
-                console.error(e);
-            } finally {
-                btn.disabled = false;
-            }
-        };
-    </script>
+      addLog(`→ ${payload.handle} (${payload.sku})`, 'blue');
+
+      const r = await fetch('/api/metafield', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t);
+      }
+
+      addLog(`✓ OK ${payload.sku}`, 'green');
+      await new Promise(r=>setTimeout(r,500));
+    }
+
+    addLog('SINCRONIZACIÓN TERMINADA', 'green');
+
+  } catch (e) {
+    addLog('ERROR: ' + e.message, 'red');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+};
+</script>
 </body>
 </html>
