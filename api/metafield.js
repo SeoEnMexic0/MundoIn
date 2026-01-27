@@ -1,79 +1,218 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') {
+    return res.status(405).json({ ok: false, error: 'Método no permitido' });
   }
-
-  const { handle, variantes } = req.body;
-
-  if (!handle || !variantes) {
-    return res.status(400).json({ error: "Datos incompletos" });
-  }
-
-  const SHOP = "mundoin.mx";
-  const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-  const API_VERSION = "2026-01";
 
   try {
-    /* ======================================================
-       1. OBTENER PRODUCTO POR HANDLE
-    ====================================================== */
-    const productRes = await fetch(
-      `https://${SHOP}/admin/api/${API_VERSION}/products.json?handle=${handle}`,
-      {
-        headers: {
-          "X-Shopify-Access-Token": TOKEN,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const {
+      handle,
+      sku,
+      sucursales // { "Centro": 10, "Coyoacán": 0, ... }
+    } = req.body;
 
-    const productData = await productRes.json();
-    if (!productData.products.length) {
-      return res.status(404).json({ error: "Producto no encontrado" });
+    if (!handle || !sku || !sucursales) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Faltan datos: handle, sku o sucursales'
+      });
     }
 
-    const product = productData.products[0];
+    const SHOP = 'mundo-in.myshopify.com';
+    const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
+    const API_URL = `https://${SHOP}/admin/api/2026-01/graphql.json`;
 
-    /* ======================================================
-       2. MAPEAR VARIANTES EXISTENTES POR SKU
-    ====================================================== */
-    const variantMap = {};
-    product.variants.forEach(v => {
-      variantMap[v.sku] = v.id;
+    const gql = async (query, variables = {}) => {
+      const r = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': TOKEN
+        },
+        body: JSON.stringify({ query, variables })
+      });
+      return r.json();
+    };
+
+    /* ---------------------------------------------------
+       1️⃣ OBTENER VARIANTE POR HANDLE + SKU
+    --------------------------------------------------- */
+    const productQuery = `
+      query ($handle: String!) {
+        productByHandle(handle: $handle) {
+          id
+          title
+          variants(first: 50) {
+            edges {
+              node {
+                id
+                sku
+                inventoryItem {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const productRes = await gql(productQuery, { handle });
+
+    const product = productRes?.data?.productByHandle;
+    if (!product) {
+      return res.status(404).json({
+        ok: false,
+        error: `Producto no encontrado: ${handle}`
+      });
+    }
+
+    const variant = product.variants.edges.find(
+      v => v.node.sku === sku
+    )?.node;
+
+    if (!variant) {
+      return res.status(404).json({
+        ok: false,
+        error: `Variante no encontrada con SKU: ${sku}`
+      });
+    }
+
+    const inventoryItemId = variant.inventoryItem.id;
+
+    /* ---------------------------------------------------
+       2️⃣ OBTENER LOCATIONS
+    --------------------------------------------------- */
+    const locationsQuery = `
+      query {
+        locations(first: 50) {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    const locationsRes = await gql(locationsQuery);
+    const locations = locationsRes.data.locations.edges.map(e => e.node);
+
+    /* ---------------------------------------------------
+       3️⃣ ARMAR SET DE INVENTARIO
+    --------------------------------------------------- */
+    const setQuantities = [];
+
+    for (const [nombre, cantidad] of Object.entries(sucursales)) {
+      const location = locations.find(
+        l => l.name.toLowerCase() === nombre.toLowerCase()
+      );
+
+      if (!location) continue;
+
+      setQuantities.push({
+        inventoryItemId,
+        locationId: location.id,
+        quantity: Number(cantidad) || 0
+      });
+    }
+
+    if (setQuantities.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'No se encontraron sucursales válidas'
+      });
+    }
+
+    /* ---------------------------------------------------
+       4️⃣ ACTUALIZAR INVENTARIO REAL
+    --------------------------------------------------- */
+    const inventoryMutation = `
+      mutation inventorySet($input: InventorySetOnHandQuantitiesInput!) {
+        inventorySetOnHandQuantities(input: $input) {
+          inventoryLevels {
+            location {
+              name
+            }
+            available
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const inventoryRes = await gql(inventoryMutation, {
+      input: {
+        reason: 'correction',
+        setQuantities
+      }
     });
 
-    /* ======================================================
-       3. CREAR / ACTUALIZAR METAFIELDS
-    ====================================================== */
-    for (const v of variantes) {
-      const variantId = variantMap[v.sku];
-      if (!variantId) continue;
+    const invErrors =
+      inventoryRes.data.inventorySetOnHandQuantities.userErrors;
 
-      await fetch(
-        `https://${SHOP}/admin/api/${API_VERSION}/metafields.json`,
-        {
-          method: "POST",
-          headers: {
-            "X-Shopify-Access-Token": TOKEN,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            metafield: {
-              namespace: "custom",
-              key: "inventario_sucursales",
-              type: "json",
-              owner_id: variantId,
-              owner_resource: "variant",
-              value: JSON.stringify(v.sucursales),
-            },
-          }),
-        }
-      );
+    if (invErrors.length) {
+      return res.status(400).json({
+        ok: false,
+        error: invErrors[0].message
+      });
     }
 
-    return res.json({ ok: true });
+    /* ---------------------------------------------------
+       5️⃣ GUARDAR METAFIELD (FRONT)
+    --------------------------------------------------- */
+    const metafieldMutation = `
+      mutation mf($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const metafieldRes = await gql(metafieldMutation, {
+      metafields: [{
+        ownerId: product.id,
+        namespace: 'custom',
+        key: 'sucursales',
+        type: 'json',
+        value: JSON.stringify(sucursales)
+      }]
+    });
+
+    const mfErrors = metafieldRes.data.metafieldsSet.userErrors;
+    if (mfErrors.length) {
+      return res.status(400).json({
+        ok: false,
+        error: mfErrors[0].message
+      });
+    }
+
+    /* ---------------------------------------------------
+       ✅ TODO OK
+    --------------------------------------------------- */
+    return res.status(200).json({
+      ok: true,
+      product: product.title,
+      sku,
+      updated: setQuantities.length
+    });
+
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Error interno" });
+    return res.status(500).json({
+      ok: false,
+      error: err.message
+    });
   }
 }
