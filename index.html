@@ -1,204 +1,165 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <title>Inventario Multisede — Mundo IN</title>
+
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f5f5f5;
-    padding: 20px;
-  }
-
-  h1 {
-    margin-bottom: 10px;
-  }
-
-  input, button {
-    padding: 6px;
-    font-size: 14px;
-  }
-
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    background: #fff;
-    margin-top: 15px;
-  }
-
-  th, td {
-    border: 1px solid #ddd;
-    padding: 6px;
-    text-align: center;
-  }
-
-  th {
-    background: #111;
-    color: #fff;
-    font-size: 13px;
-  }
-
-  td input {
-    width: 60px;
-    text-align: center;
-  }
-
-  button {
-    cursor: pointer;
-    background: #111;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-  }
-
-  button:hover {
-    opacity: 0.85;
-  }
-
-  .ok {
-    color: green;
-    font-weight: bold;
-  }
-
-  .error {
-    color: red;
-    font-weight: bold;
-  }
+body {
+  font-family: system-ui, sans-serif;
+  background:#0f172a;
+  color:#e5e7eb;
+  padding:30px;
+}
+table {
+  width:100%;
+  border-collapse: collapse;
+  background:#020617;
+}
+th, td {
+  border:1px solid #1e293b;
+  padding:8px;
+  text-align:center;
+}
+th {
+  background:#020617;
+  position: sticky;
+  top:0;
+}
+input {
+  width:60px;
+  padding:4px;
+  text-align:center;
+  background:#020617;
+  border:1px solid #334155;
+  color:white;
+}
+button {
+  padding:6px 12px;
+  background:#22c55e;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:bold;
+}
+button:disabled {
+  opacity:.5;
+}
+#log {
+  margin-top:20px;
+  background:black;
+  padding:10px;
+  font-family:monospace;
+  max-height:250px;
+  overflow:auto;
+}
+.green {color:#22c55e}
+.red {color:#ef4444}
+.blue {color:#38bdf8}
 </style>
 </head>
 
 <body>
 
-<h1>Inventario Multisede — Mundo IN</h1>
+<h2>Inventario Multisede — Mundo IN</h2>
+<p>Producto: <b>cama-luton</b></p>
 
-<label>
-  Handle del producto (ej. <b>cama-luton</b>):
-  <input id="handle" value="cama-luton">
-</label>
-<button onclick="cargar()">Cargar</button>
-
-<div id="status"></div>
-
-<table id="tabla" style="display:none">
-  <thead>
-    <tr id="thead"></tr>
-  </thead>
-  <tbody id="tbody"></tbody>
+<table id="tabla">
+<thead>
+<tr>
+  <th>Tamaño</th>
+  <th>Color</th>
+  <th>SKU</th>
+  <th>Centro</th>
+  <th>Coyoacán</th>
+  <th>Benito Juárez</th>
+  <th>Gustavo Baz</th>
+  <th>Naucalpan</th>
+  <th>Toluca</th>
+  <th>Querétaro</th>
+  <th>Vallejo</th>
+  <th>Puebla</th>
+  <th>Sync</th>
+</tr>
+</thead>
+<tbody></tbody>
 </table>
 
+<div id="log"></div>
+
 <script>
+const HANDLE = "cama-luton";
 const SUCURSALES = [
-  "Centro",
-  "Coyoacán",
-  "Benito Juárez",
-  "Gustavo Baz",
-  "Naucalpan",
-  "Toluca",
-  "Querétaro",
-  "Vallejo",
-  "Puebla"
+  "Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez","Suc. Gustavo Baz",
+  "Suc. Naucalpan","Suc. Toluca","Suc. Querétaro","Suc. Vallejo","Suc. Puebla"
 ];
 
-// 🔥 CARGAR PRODUCTO
+const log = msg => {
+  const d = document.createElement('div');
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logBox.prepend(d);
+};
+const logBox = document.getElementById('log');
+
 async function cargar() {
-  const handle = document.getElementById('handle').value.trim();
-  if (!handle) return;
+  log("Cargando variantes...", "blue");
 
-  document.getElementById('status').textContent = 'Cargando...';
-
-  const res = await fetch(`/api/load?handle=${handle}`);
+  const res = await fetch(`/api/get_product_variants?handle=${HANDLE}`);
   const data = await res.json();
 
-  if (!data.ok) {
-    document.getElementById('status').innerHTML = `<span class="error">${data.error}</span>`;
-    return;
-  }
+  const tbody = document.querySelector("#tabla tbody");
 
-  renderTabla(handle, data.variants);
-  document.getElementById('status').textContent = '';
-}
-
-// 🧱 CONSTRUIR TABLA
-function renderTabla(handle, variants) {
-  const thead = document.getElementById('thead');
-  const tbody = document.getElementById('tbody');
-
-  thead.innerHTML = `
-    <th>Tamaño</th>
-    <th>Color</th>
-    <th>SKU</th>
-    ${SUCURSALES.map(s => `<th>${s}</th>`).join('')}
-    <th>Sincronizar</th>
-  `;
-
-  tbody.innerHTML = '';
-
-  variants.forEach(v => {
-    const suc = v.sucursales || {};
-    const tr = document.createElement('tr');
+  data.variants.forEach(v => {
+    const tr = document.createElement("tr");
 
     tr.innerHTML = `
-      <td>${v.option1 || '-'}</td>
-      <td>${v.option2 || '-'}</td>
-      <td><b>${v.sku}</b></td>
+      <td>${v.options.Tamaño}</td>
+      <td>${v.options.Color}</td>
+      <td>${v.sku}</td>
       ${SUCURSALES.map(s => `
-        <td>
-          <input 
-            data-sucursal="${s}" 
-            placeholder="${suc[s] ?? ''}"
-          >
-        </td>
-      `).join('')}
-      <td>
-        <button onclick="guardar(this, '${handle}', '${v.sku}')">Sincronizar</button>
-      </td>
+        <td><input data-suc="${s}" /></td>
+      `).join("")}
+      <td><button>Sincronizar</button></td>
     `;
 
+    tr.querySelector("button").onclick = () => syncRow(tr, v.sku);
     tbody.appendChild(tr);
   });
 
-  document.getElementById('tabla').style.display = '';
+  log("Variantes listas");
 }
 
-// 💾 GUARDAR SOLO LO MODIFICADO
-async function guardar(btn, handle, sku) {
-  const row = btn.closest('tr');
-  const inputs = row.querySelectorAll('input[data-sucursal]');
-  const updates = {};
-
-  inputs.forEach(input => {
-    if (input.value !== '') {
-      updates[input.dataset.sucursal] = Number(input.value);
+async function syncRow(tr, sku) {
+  const cambios = {};
+  tr.querySelectorAll("input").forEach(i => {
+    if (i.value !== "") {
+      cambios[i.dataset.suc] = Number(i.value);
     }
   });
 
-  if (!Object.keys(updates).length) {
-    alert('No modificaste nada');
+  if (Object.keys(cambios).length === 0) {
+    log(`✗ ${sku}: sin cambios`, "red");
     return;
   }
 
-  btn.disabled = true;
-  btn.textContent = '...';
+  log(`→ ${HANDLE} / ${sku}`);
 
-  const res = await fetch('/api/metafield', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ handle, sku, updates })
+  const res = await fetch("/api/metafield", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      handle: HANDLE,
+      sku,
+      cambios
+    })
   });
 
-  const data = await res.json();
-
-  btn.disabled = false;
-  btn.textContent = 'Sincronizar';
-
-  if (data.ok) {
-    btn.innerHTML = '✔';
-    btn.classList.add('ok');
-  } else {
-    alert(data.error || 'Error');
-  }
+  const r = await res.json();
+  if (r.ok) log(`✓ ${sku}: actualizado`, "green");
+  else log(`✗ ${sku}: ${r.error}`, "red");
 }
-</script>
 
+cargar();
+</script>
 </body>
 </html>
