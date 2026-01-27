@@ -1,165 +1,81 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<title>Inventario Multisede — Mundo IN</title>
-
+<meta charset="UTF-8">
+<title>Stock por sucursal</title>
 <style>
-body {
-  font-family: system-ui, sans-serif;
-  background:#0f172a;
-  color:#e5e7eb;
-  padding:30px;
-}
-table {
-  width:100%;
-  border-collapse: collapse;
-  background:#020617;
-}
-th, td {
-  border:1px solid #1e293b;
-  padding:8px;
-  text-align:center;
-}
-th {
-  background:#020617;
-  position: sticky;
-  top:0;
-}
-input {
-  width:60px;
-  padding:4px;
-  text-align:center;
-  background:#020617;
-  border:1px solid #334155;
-  color:white;
-}
-button {
-  padding:6px 12px;
-  background:#22c55e;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-  font-weight:bold;
-}
-button:disabled {
-  opacity:.5;
-}
-#log {
-  margin-top:20px;
-  background:black;
-  padding:10px;
-  font-family:monospace;
-  max-height:250px;
-  overflow:auto;
-}
-.green {color:#22c55e}
-.red {color:#ef4444}
-.blue {color:#38bdf8}
+table { border-collapse: collapse; width: 100%; }
+td, th { border: 1px solid #ccc; padding: 6px; text-align: center; }
+input { width: 70px; }
+button { padding: 10px 20px; margin-top: 10px; }
 </style>
 </head>
-
 <body>
 
-<h2>Inventario Multisede — Mundo IN</h2>
-<p>Producto: <b>cama-luton</b></p>
+<h2>Cama Luton – Individual / Gris</h2>
 
 <table id="tabla">
-<thead>
-<tr>
-  <th>Tamaño</th>
-  <th>Color</th>
-  <th>SKU</th>
-  <th>Centro</th>
-  <th>Coyoacán</th>
-  <th>Benito Juárez</th>
-  <th>Gustavo Baz</th>
-  <th>Naucalpan</th>
-  <th>Toluca</th>
-  <th>Querétaro</th>
-  <th>Vallejo</th>
-  <th>Puebla</th>
-  <th>Sync</th>
-</tr>
-</thead>
-<tbody></tbody>
+  <thead>
+    <tr>
+      <th>Sucursal</th>
+      <th>Stock actual</th>
+      <th>Nuevo</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
 </table>
 
-<div id="log"></div>
+<button onclick="guardar()">Guardar cambios</button>
 
 <script>
-const HANDLE = "cama-luton";
-const SUCURSALES = [
-  "Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez","Suc. Gustavo Baz",
-  "Suc. Naucalpan","Suc. Toluca","Suc. Querétaro","Suc. Vallejo","Suc. Puebla"
+const HANDLE = 'cama-luton';
+
+const OPCIONES = [
+  { nombre: 'Tamaño', valor: 'Individual' },
+  { nombre: 'Color', valor: 'Gris' }
 ];
 
-const log = msg => {
-  const d = document.createElement('div');
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  logBox.prepend(d);
+const DATA = {
+  sucursales: [
+    "WEB","Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez",
+    "Suc. Gustavo Baz","Suc. Naucalpan","Suc. Toluca",
+    "Suc. Querétaro","Suc. Vallejo","Suc. Puebla"
+  ],
+  cantidades: [10,5,5,99,5,5,5,5,5,5]
 };
-const logBox = document.getElementById('log');
 
-async function cargar() {
-  log("Cargando variantes...", "blue");
+const tbody = document.querySelector('#tabla tbody');
 
-  const res = await fetch(`/api/get_product_variants?handle=${HANDLE}`);
-  const data = await res.json();
+DATA.sucursales.forEach((suc, i) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${suc}</td>
+    <td>${DATA.cantidades[i]}</td>
+    <td><input data-suc="${suc}" placeholder="="></td>
+  `;
+  tbody.appendChild(tr);
+});
 
-  const tbody = document.querySelector("#tabla tbody");
-
-  data.variants.forEach(v => {
-    const tr = document.createElement("tr");
-
-    tr.innerHTML = `
-      <td>${v.options.Tamaño}</td>
-      <td>${v.options.Color}</td>
-      <td>${v.sku}</td>
-      ${SUCURSALES.map(s => `
-        <td><input data-suc="${s}" /></td>
-      `).join("")}
-      <td><button>Sincronizar</button></td>
-    `;
-
-    tr.querySelector("button").onclick = () => syncRow(tr, v.sku);
-    tbody.appendChild(tr);
-  });
-
-  log("Variantes listas");
-}
-
-async function syncRow(tr, sku) {
+async function guardar() {
   const cambios = {};
-  tr.querySelectorAll("input").forEach(i => {
-    if (i.value !== "") {
-      cambios[i.dataset.suc] = Number(i.value);
-    }
+  document.querySelectorAll('input').forEach(i => {
+    if (i.value !== '') cambios[i.dataset.suc] = i.value;
   });
 
-  if (Object.keys(cambios).length === 0) {
-    log(`✗ ${sku}: sin cambios`, "red");
-    return;
-  }
-
-  log(`→ ${HANDLE} / ${sku}`);
-
-  const res = await fetch("/api/metafield", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
+  const r = await fetch('/api/metafield', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       handle: HANDLE,
-      sku,
+      opciones: OPCIONES,
       cambios
     })
   });
 
-  const r = await res.json();
-  if (r.ok) log(`✓ ${sku}: actualizado`, "green");
-  else log(`✗ ${sku}: ${r.error}`, "red");
+  const j = await r.json();
+  alert(j.ok ? '✔ Guardado' : '✗ Error');
 }
-
-cargar();
 </script>
+
 </body>
 </html>
