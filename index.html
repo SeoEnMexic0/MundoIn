@@ -1,177 +1,204 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <title>Inventario Multisede — Mundo IN</title>
-
 <style>
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #0f172a;
-  color: #e5e7eb;
-  padding: 40px;
-}
-.card {
-  max-width: 1200px;
-  margin: auto;
-  background: #111827;
-  padding: 25px;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0,0,0,.5);
-}
-h1 { margin-top: 0; text-align: center; }
-input, button {
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #334155;
-  background: #020617;
-  color: white;
-}
-button {
-  background: #22c55e;
-  font-weight: bold;
-  cursor: pointer;
-}
-button.red { background:#ef4444; }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
-}
-th, td {
-  border: 1px solid #1e293b;
-  padding: 6px;
-  text-align: center;
-}
-th { background:#020617; font-size: 12px; }
-.log {
-  margin-top: 20px;
-  background: black;
-  padding: 10px;
-  border-radius: 8px;
-  font-family: monospace;
-  max-height: 250px;
-  overflow: auto;
-}
-.green { color:#22c55e }
-.red { color:#ef4444 }
-.blue { color:#3b82f6 }
+  body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    padding: 20px;
+  }
+
+  h1 {
+    margin-bottom: 10px;
+  }
+
+  input, button {
+    padding: 6px;
+    font-size: 14px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    margin-top: 15px;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    text-align: center;
+  }
+
+  th {
+    background: #111;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  td input {
+    width: 60px;
+    text-align: center;
+  }
+
+  button {
+    cursor: pointer;
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+  }
+
+  button:hover {
+    opacity: 0.85;
+  }
+
+  .ok {
+    color: green;
+    font-weight: bold;
+  }
+
+  .error {
+    color: red;
+    font-weight: bold;
+  }
 </style>
 </head>
 
 <body>
-<div class="card">
-  <h1>Inventario Multisede — Mundo IN</h1>
 
-  <label>Handle del producto</label><br>
-  <input id="handle" placeholder="cama-luton" style="width:300px"><br><br>
+<h1>Inventario Multisede — Mundo IN</h1>
 
-  <button onclick="addRow()">+ Variante</button>
-  <button onclick="syncAll()">Sincronizar todo</button>
+<label>
+  Handle del producto (ej. <b>cama-luton</b>):
+  <input id="handle" value="cama-luton">
+</label>
+<button onclick="cargar()">Cargar</button>
 
-  <table id="table">
-    <thead>
-      <tr>
-        <th>Tamaño</th>
-        <th>Color</th>
-        <th>SKU</th>
-        <th>Centro</th>
-        <th>Coyoacán</th>
-        <th>Benito Juárez</th>
-        <th>Gustavo Baz</th>
-        <th>Naucalpan</th>
-        <th>Toluca</th>
-        <th>Querétaro</th>
-        <th>Vallejo</th>
-        <th>Puebla</th>
-        <th>X</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<div id="status"></div>
 
-  <div class="log" id="log"></div>
-</div>
+<table id="tabla" style="display:none">
+  <thead>
+    <tr id="thead"></tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
 
 <script>
-const tbody = document.querySelector('#table tbody');
-const log = document.getElementById('log');
+const SUCURSALES = [
+  "Centro",
+  "Coyoacán",
+  "Benito Juárez",
+  "Gustavo Baz",
+  "Naucalpan",
+  "Toluca",
+  "Querétaro",
+  "Vallejo",
+  "Puebla"
+];
 
-function addLog(msg, color='') {
-  const d = document.createElement('div');
-  d.className = color;
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  log.prepend(d);
-}
-
-function addRow() {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input></td>
-    <td><input></td>
-    <td><input></td>
-    ${'<td><input type="number" value="0"></td>'.repeat(9)}
-    <td><button class="red" onclick="this.closest('tr').remove()">X</button></td>
-  `;
-  tbody.appendChild(tr);
-}
-
-async function syncAll() {
+// 🔥 CARGAR PRODUCTO
+async function cargar() {
   const handle = document.getElementById('handle').value.trim();
-  if (!handle) return alert('Pon el handle');
+  if (!handle) return;
 
-  const rows = [...tbody.querySelectorAll('tr')];
-  if (!rows.length) return alert('Agrega variantes');
+  document.getElementById('status').textContent = 'Cargando...';
 
-  addLog(`Sincronizando ${rows.length} variantes...`, 'blue');
+  const res = await fetch(`/api/load?handle=${handle}`);
+  const data = await res.json();
 
-  for (const row of rows) {
-    const cells = row.querySelectorAll('input');
-    const [size, color, sku, ...stocks] = [...cells].map(i => i.value);
-
-    if (!sku) {
-      addLog(`SKU vacío, se omite variante`, 'red');
-      continue;
-    }
-
-    const sucursales = {
-      "Centro": +stocks[0],
-      "Coyoacán": +stocks[1],
-      "Benito Juárez": +stocks[2],
-      "Gustavo Baz": +stocks[3],
-      "Naucalpan": +stocks[4],
-      "Toluca": +stocks[5],
-      "Querétaro": +stocks[6],
-      "Vallejo": +stocks[7],
-      "Puebla": +stocks[8]
-    };
-
-    addLog(`→ ${handle} / ${sku}`, 'blue');
-
-    const res = await fetch('/api/metafield', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        handle,
-        sku,
-        sucursales,
-        options: { size, color }
-      })
-    });
-
-    const json = await res.json();
-
-    if (json.ok) {
-      addLog(`✓ ${sku} sincronizado`, 'green');
-    } else {
-      addLog(`✗ ${sku}: ${json.error}`, 'red');
-    }
-
-    await new Promise(r => setTimeout(r, 500));
+  if (!data.ok) {
+    document.getElementById('status').innerHTML = `<span class="error">${data.error}</span>`;
+    return;
   }
 
-  addLog('SINCRONIZACIÓN TERMINADA', 'green');
+  renderTabla(handle, data.variants);
+  document.getElementById('status').textContent = '';
+}
+
+// 🧱 CONSTRUIR TABLA
+function renderTabla(handle, variants) {
+  const thead = document.getElementById('thead');
+  const tbody = document.getElementById('tbody');
+
+  thead.innerHTML = `
+    <th>Tamaño</th>
+    <th>Color</th>
+    <th>SKU</th>
+    ${SUCURSALES.map(s => `<th>${s}</th>`).join('')}
+    <th>Sincronizar</th>
+  `;
+
+  tbody.innerHTML = '';
+
+  variants.forEach(v => {
+    const suc = v.sucursales || {};
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+      <td>${v.option1 || '-'}</td>
+      <td>${v.option2 || '-'}</td>
+      <td><b>${v.sku}</b></td>
+      ${SUCURSALES.map(s => `
+        <td>
+          <input 
+            data-sucursal="${s}" 
+            placeholder="${suc[s] ?? ''}"
+          >
+        </td>
+      `).join('')}
+      <td>
+        <button onclick="guardar(this, '${handle}', '${v.sku}')">Sincronizar</button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('tabla').style.display = '';
+}
+
+// 💾 GUARDAR SOLO LO MODIFICADO
+async function guardar(btn, handle, sku) {
+  const row = btn.closest('tr');
+  const inputs = row.querySelectorAll('input[data-sucursal]');
+  const updates = {};
+
+  inputs.forEach(input => {
+    if (input.value !== '') {
+      updates[input.dataset.sucursal] = Number(input.value);
+    }
+  });
+
+  if (!Object.keys(updates).length) {
+    alert('No modificaste nada');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  const res = await fetch('/api/metafield', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ handle, sku, updates })
+  });
+
+  const data = await res.json();
+
+  btn.disabled = false;
+  btn.textContent = 'Sincronizar';
+
+  if (data.ok) {
+    btn.innerHTML = '✔';
+    btn.classList.add('ok');
+  } else {
+    alert(data.error || 'Error');
+  }
 }
 </script>
+
 </body>
 </html>
