@@ -2,58 +2,33 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Método no permitido' });
-  }
 
   try {
-    const {
-      handle,
-      sku,
-      sucursales // { "Centro": 10, "Coyoacán": 0, ... }
-    } = req.body;
+    const { handle, sku, updates } = req.body;
 
-    if (!handle || !sku || !sucursales) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Faltan datos: handle, sku o sucursales'
-      });
+    if (!handle || !sku || !updates || typeof updates !== 'object') {
+      return res.status(400).json({ ok: false, error: 'Datos incompletos' });
     }
 
     const SHOP = 'mundo-in.myshopify.com';
     const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-    const API_URL = `https://${SHOP}/admin/api/2026-01/graphql.json`;
+    const URL = `https://${SHOP}/admin/api/2026-01/graphql.json`;
 
-    const gql = async (query, variables = {}) => {
-      const r = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': TOKEN
-        },
-        body: JSON.stringify({ query, variables })
-      });
-      return r.json();
-    };
-
-    /* ---------------------------------------------------
-       1️⃣ OBTENER VARIANTE POR HANDLE + SKU
-    --------------------------------------------------- */
-    const productQuery = `
+    /* =====================================================
+       1. BUSCAR VARIANTE POR HANDLE + SKU
+    ===================================================== */
+    const queryFind = `
       query ($handle: String!) {
         productByHandle(handle: $handle) {
           id
-          title
           variants(first: 50) {
-            edges {
-              node {
+            nodes {
+              id
+              sku
+              metafield(namespace: "custom", key: "sucursales") {
                 id
-                sku
-                inventoryItem {
-                  id
-                }
+                value
               }
             }
           }
@@ -61,158 +36,92 @@ export default async function handler(req, res) {
       }
     `;
 
-    const productRes = await gql(productQuery, { handle });
+    const findRes = await fetch(URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': TOKEN
+      },
+      body: JSON.stringify({
+        query: queryFind,
+        variables: { handle }
+      })
+    });
 
-    const product = productRes?.data?.productByHandle;
+    const findJson = await findRes.json();
+    const product = findJson.data?.productByHandle;
+
     if (!product) {
-      return res.status(404).json({
-        ok: false,
-        error: `Producto no encontrado: ${handle}`
-      });
+      return res.status(404).json({ ok: false, error: `Producto no encontrado: ${handle}` });
     }
 
-    const variant = product.variants.edges.find(
-      v => v.node.sku === sku
-    )?.node;
+    const variant = product.variants.nodes.find(v => v.sku === sku);
 
     if (!variant) {
-      return res.status(404).json({
-        ok: false,
-        error: `Variante no encontrada con SKU: ${sku}`
-      });
+      return res.status(404).json({ ok: false, error: `Variante no encontrada por SKU: ${sku}` });
     }
 
-    const inventoryItemId = variant.inventoryItem.id;
+    /* =====================================================
+       2. MERGE DE SUCURSALES (NO PISAR LO NO ENVIADO)
+    ===================================================== */
+    let actual = {};
+    if (variant.metafield?.value) {
+      actual = JSON.parse(variant.metafield.value);
+    }
 
-    /* ---------------------------------------------------
-       2️⃣ OBTENER LOCATIONS
-    --------------------------------------------------- */
-    const locationsQuery = `
-      query {
-        locations(first: 50) {
-          edges {
-            node {
-              id
-              name
-            }
-          }
+    const merged = { ...actual };
+    for (const key in updates) {
+      merged[key] = updates[key]; // incluso 0
+    }
+
+    /* =====================================================
+       3. GUARDAR METAFIELD EN VARIANTE
+    ===================================================== */
+    const mutation = `
+      mutation ($input: MetafieldsSetInput!) {
+        metafieldsSet(metafields: [$input]) {
+          metafields { id }
+          userErrors { message }
         }
       }
     `;
 
-    const locationsRes = await gql(locationsQuery);
-    const locations = locationsRes.data.locations.edges.map(e => e.node);
-
-    /* ---------------------------------------------------
-       3️⃣ ARMAR SET DE INVENTARIO
-    --------------------------------------------------- */
-    const setQuantities = [];
-
-    for (const [nombre, cantidad] of Object.entries(sucursales)) {
-      const location = locations.find(
-        l => l.name.toLowerCase() === nombre.toLowerCase()
-      );
-
-      if (!location) continue;
-
-      setQuantities.push({
-        inventoryItemId,
-        locationId: location.id,
-        quantity: Number(cantidad) || 0
-      });
-    }
-
-    if (setQuantities.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        error: 'No se encontraron sucursales válidas'
-      });
-    }
-
-    /* ---------------------------------------------------
-       4️⃣ ACTUALIZAR INVENTARIO REAL
-    --------------------------------------------------- */
-    const inventoryMutation = `
-      mutation inventorySet($input: InventorySetOnHandQuantitiesInput!) {
-        inventorySetOnHandQuantities(input: $input) {
-          inventoryLevels {
-            location {
-              name
-            }
-            available
-          }
-          userErrors {
-            field
-            message
+    const saveRes = await fetch(URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': TOKEN
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          input: {
+            ownerId: variant.id,
+            namespace: 'custom',
+            key: 'sucursales',
+            type: 'json',
+            value: JSON.stringify(merged)
           }
         }
-      }
-    `;
-
-    const inventoryRes = await gql(inventoryMutation, {
-      input: {
-        reason: 'correction',
-        setQuantities
-      }
+      })
     });
 
-    const invErrors =
-      inventoryRes.data.inventorySetOnHandQuantities.userErrors;
+    const saveJson = await saveRes.json();
+    const errors = saveJson.data?.metafieldsSet?.userErrors;
 
-    if (invErrors.length) {
-      return res.status(400).json({
-        ok: false,
-        error: invErrors[0].message
-      });
+    if (errors && errors.length) {
+      return res.status(400).json({ ok: false, error: errors[0].message });
     }
 
-    /* ---------------------------------------------------
-       5️⃣ GUARDAR METAFIELD (FRONT)
-    --------------------------------------------------- */
-    const metafieldMutation = `
-      mutation mf($metafields: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $metafields) {
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
-
-    const metafieldRes = await gql(metafieldMutation, {
-      metafields: [{
-        ownerId: product.id,
-        namespace: 'custom',
-        key: 'sucursales',
-        type: 'json',
-        value: JSON.stringify(sucursales)
-      }]
-    });
-
-    const mfErrors = metafieldRes.data.metafieldsSet.userErrors;
-    if (mfErrors.length) {
-      return res.status(400).json({
-        ok: false,
-        error: mfErrors[0].message
-      });
-    }
-
-    /* ---------------------------------------------------
-       ✅ TODO OK
-    --------------------------------------------------- */
     return res.status(200).json({
       ok: true,
-      product: product.title,
+      handle,
       sku,
-      updated: setQuantities.length
+      sucursales: merged
     });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message
-    });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
