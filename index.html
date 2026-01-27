@@ -2,94 +2,74 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Mundo IN — Inventario Multisede</title>
+<title>Inventario Multisede — Mundo IN</title>
 
 <style>
-:root{
-  --bg:#0f172a;
-  --panel:#111827;
-  --text:#e5e7eb;
-  --primary:#22c55e;
-  --danger:#ef4444;
-  --border:#1f2937;
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 40px;
 }
-*{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:system-ui,-apple-system,sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  padding:40px;
+.card {
+  max-width: 1200px;
+  margin: auto;
+  background: #111827;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.5);
 }
-.card{
-  max-width:1200px;
-  margin:auto;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:24px;
+h1 { margin-top: 0; text-align: center; }
+input, button {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #020617;
+  color: white;
 }
-h2{text-align:center;margin-top:0}
-
-.controls{
-  display:flex;
-  gap:10px;
-  justify-content:center;
-  margin-bottom:20px;
+button {
+  background: #22c55e;
+  font-weight: bold;
+  cursor: pointer;
 }
-input{
-  background:#020617;
-  color:white;
-  border:1px solid #334155;
-  border-radius:6px;
-  padding:6px 8px;
+button.red { background:#ef4444; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
 }
-button{
-  padding:10px 16px;
-  border:none;
-  border-radius:8px;
-  font-weight:bold;
-  cursor:pointer;
+th, td {
+  border: 1px solid #1e293b;
+  padding: 6px;
+  text-align: center;
 }
-.green{background:var(--primary);color:black}
-.red{background:var(--danger);color:white}
-
-table{
-  width:100%;
-  border-collapse:collapse;
+th { background:#020617; font-size: 12px; }
+.log {
+  margin-top: 20px;
+  background: black;
+  padding: 10px;
+  border-radius: 8px;
+  font-family: monospace;
+  max-height: 250px;
+  overflow: auto;
 }
-th,td{
-  border:1px solid var(--border);
-  padding:6px;
-  text-align:center;
-}
-th{background:#020617}
-
-#log{
-  margin-top:20px;
-  background:black;
-  border-radius:8px;
-  padding:12px;
-  font-family:monospace;
-  font-size:13px;
-  max-height:260px;
-  overflow:auto;
-}
+.green { color:#22c55e }
+.red { color:#ef4444 }
+.blue { color:#3b82f6 }
 </style>
 </head>
 
 <body>
-
 <div class="card">
-  <h2>Inventario Multisede — Mundo IN</h2>
+  <h1>Inventario Multisede — Mundo IN</h1>
 
-  <div class="controls">
-    <input id="handle" placeholder="handle del producto (ej. cama-luton)" style="width:300px">
-    <button class="green" onclick="addRow()">+ Variante</button>
-    <button class="green" onclick="sync()">Sincronizar</button>
-  </div>
+  <label>Handle del producto</label><br>
+  <input id="handle" placeholder="cama-luton" style="width:300px"><br><br>
 
-  <table>
+  <button onclick="addRow()">+ Variante</button>
+  <button onclick="syncAll()">Sincronizar todo</button>
+
+  <table id="table">
     <thead>
       <tr>
         <th>Tamaño</th>
@@ -104,79 +84,94 @@ th{background:#020617}
         <th>Querétaro</th>
         <th>Vallejo</th>
         <th>Puebla</th>
-        <th></th>
+        <th>X</th>
       </tr>
     </thead>
-    <tbody id="tbody"></tbody>
+    <tbody></tbody>
   </table>
 
-  <div id="log">Listo.</div>
+  <div class="log" id="log"></div>
 </div>
 
 <script>
-const sucursales=[
- "Centro","Coyoacán","Benito Juárez","Gustavo Baz",
- "Naucalpan","Toluca","Querétaro","Vallejo","Puebla"
-];
+const tbody = document.querySelector('#table tbody');
+const log = document.getElementById('log');
 
-function log(msg,color=""){
-  const d=document.createElement("div");
-  d.textContent=`[${new Date().toLocaleTimeString()}] ${msg}`;
-  if(color)d.style.color=color;
-  document.getElementById("log").prepend(d);
+function addLog(msg, color='') {
+  const d = document.createElement('div');
+  d.className = color;
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.prepend(d);
 }
 
-function addRow(){
-  const tr=document.createElement("tr");
-  tr.innerHTML=`
+function addRow() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
     <td><input></td>
     <td><input></td>
     <td><input></td>
-    ${sucursales.map(()=>`<td><input type="number" min="0" value="0" style="width:70px"></td>`).join("")}
+    ${'<td><input type="number" value="0"></td>'.repeat(9)}
     <td><button class="red" onclick="this.closest('tr').remove()">X</button></td>
   `;
-  document.getElementById("tbody").appendChild(tr);
+  tbody.appendChild(tr);
 }
 
-async function sync(){
-  const handle=document.getElementById("handle").value.trim();
-  if(!handle)return alert("Pon el handle del producto");
+async function syncAll() {
+  const handle = document.getElementById('handle').value.trim();
+  if (!handle) return alert('Pon el handle');
 
-  const rows=[...document.querySelectorAll("#tbody tr")];
-  if(!rows.length)return alert("Agrega al menos una variante");
+  const rows = [...tbody.querySelectorAll('tr')];
+  if (!rows.length) return alert('Agrega variantes');
 
-  const variantes=rows.map(r=>{
-    const i=[...r.querySelectorAll("input")];
-    const v={
-      size:i[0].value,
-      color:i[1].value,
-      sku:i[2].value,
-      sucursales:{}
+  addLog(`Sincronizando ${rows.length} variantes...`, 'blue');
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll('input');
+    const [size, color, sku, ...stocks] = [...cells].map(i => i.value);
+
+    if (!sku) {
+      addLog(`SKU vacío, se omite variante`, 'red');
+      continue;
+    }
+
+    const sucursales = {
+      "Centro": +stocks[0],
+      "Coyoacán": +stocks[1],
+      "Benito Juárez": +stocks[2],
+      "Gustavo Baz": +stocks[3],
+      "Naucalpan": +stocks[4],
+      "Toluca": +stocks[5],
+      "Querétaro": +stocks[6],
+      "Vallejo": +stocks[7],
+      "Puebla": +stocks[8]
     };
-    sucursales.forEach((s,idx)=>{
-      v.sucursales[s]=parseInt(i[3+idx].value||0);
+
+    addLog(`→ ${handle} / ${sku}`, 'blue');
+
+    const res = await fetch('/api/metafield', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        handle,
+        sku,
+        sucursales,
+        options: { size, color }
+      })
     });
-    return v;
-  });
 
-  log(`Enviando ${variantes.length} variantes…`,"#3b82f6");
+    const json = await res.json();
 
-  const res=await fetch("/api/sync_metafield",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({handle,variantes})
-  });
+    if (json.ok) {
+      addLog(`✓ ${sku} sincronizado`, 'green');
+    } else {
+      addLog(`✗ ${sku}: ${json.error}`, 'red');
+    }
 
-  const data=await res.json();
-  if(data.ok){
-    log("✓ Sincronización correcta","#22c55e");
-  }else{
-    log("✗ Error: "+data.error,"#ef4444");
+    await new Promise(r => setTimeout(r, 500));
   }
+
+  addLog('SINCRONIZACIÓN TERMINADA', 'green');
 }
-
-addRow();
 </script>
-
 </body>
 </html>
