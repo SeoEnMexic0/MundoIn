@@ -2,123 +2,107 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')
+    return res.status(405).json({ ok: false, error: 'Método no permitido' });
 
   try {
-    const { handle, sku, updates } = req.body;
+    const { handle, sku, cambios } = req.body;
 
-    if (!handle || !sku || !updates || typeof updates !== 'object') {
+    if (!handle || !sku || !cambios)
       return res.status(400).json({ ok: false, error: 'Datos incompletos' });
-    }
 
-    const SHOP = 'mundo-in.myshopify.com';
+    /* ================= CONFIG ================= */
+    const SHOP = 'mundoin.mx';
+    const ADMIN = 'mundo-in.myshopify.com';
     const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-    const URL = `https://${SHOP}/admin/api/2026-01/graphql.json`;
+    const API = '2026-01';
 
-    /* =====================================================
-       1. BUSCAR VARIANTE POR HANDLE + SKU
-    ===================================================== */
-    const queryFind = `
+    const gql = async (query, variables = {}) => {
+      const r = await fetch(`https://${ADMIN}/admin/api/${API}/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': TOKEN
+        },
+        body: JSON.stringify({ query, variables })
+      });
+      return r.json();
+    };
+
+    /* ========== 1. PRODUCTO POR HANDLE ========= */
+    const productRes = await gql(`
       query ($handle: String!) {
         productByHandle(handle: $handle) {
           id
-          variants(first: 50) {
-            nodes {
-              id
-              sku
-              metafield(namespace: "custom", key: "sucursales") {
-                id
-                value
-              }
-            }
+          metafield(namespace:"custom", key:"sucursales") {
+            id
+            value
           }
         }
       }
-    `;
+    `, { handle });
 
-    const findRes = await fetch(URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': TOKEN
-      },
-      body: JSON.stringify({
-        query: queryFind,
-        variables: { handle }
-      })
+    const product = productRes?.data?.productByHandle;
+    if (!product)
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
+
+    /* ========== 2. METAFIELD ACTUAL ============= */
+    let data = product.metafield
+      ? JSON.parse(product.metafield.value)
+      : null;
+
+    if (!data || !data.sucursales || !data.variantes)
+      return res.status(400).json({ ok: false, error: 'Metafield inválido' });
+
+    /* ========== 3. MAPA DE SUCURSALES =========== */
+    const SUCS = data.sucursales.map(s => s.nombre);
+
+    /* ========== 4. VARIANTE POR SKU ============= */
+    const variante = data.variantes.find(v =>
+      v.sku === sku ||
+      v.opciones?.some(o => o.valor === sku) // fallback
+    );
+
+    if (!variante)
+      return res.status(404).json({ ok: false, error: 'Variante no encontrada' });
+
+    /* ========== 5. MERGE DE STOCK =============== */
+    variante.cantidades = variante.cantidades || Array(SUCS.length).fill(0);
+
+    Object.entries(cambios).forEach(([nombre, valor]) => {
+      const idx = SUCS.indexOf(nombre);
+      if (idx === -1) return;
+
+      // SOLO guardar si viene definido (permite 0)
+      if (valor !== '' && valor !== null && valor !== undefined) {
+        variante.cantidades[idx] = Number(valor);
+      }
     });
 
-    const findJson = await findRes.json();
-    const product = findJson.data?.productByHandle;
-
-    if (!product) {
-      return res.status(404).json({ ok: false, error: `Producto no encontrado: ${handle}` });
-    }
-
-    const variant = product.variants.nodes.find(v => v.sku === sku);
-
-    if (!variant) {
-      return res.status(404).json({ ok: false, error: `Variante no encontrada por SKU: ${sku}` });
-    }
-
-    /* =====================================================
-       2. MERGE DE SUCURSALES (NO PISAR LO NO ENVIADO)
-    ===================================================== */
-    let actual = {};
-    if (variant.metafield?.value) {
-      actual = JSON.parse(variant.metafield.value);
-    }
-
-    const merged = { ...actual };
-    for (const key in updates) {
-      merged[key] = updates[key]; // incluso 0
-    }
-
-    /* =====================================================
-       3. GUARDAR METAFIELD EN VARIANTE
-    ===================================================== */
-    const mutation = `
-      mutation ($input: MetafieldsSetInput!) {
-        metafieldsSet(metafields: [$input]) {
-          metafields { id }
+    /* ========== 6. GUARDAR METAFIELD ============ */
+    const save = await gql(`
+      mutation ($mf: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $mf) {
           userErrors { message }
         }
       }
-    `;
-
-    const saveRes = await fetch(URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': TOKEN
-      },
-      body: JSON.stringify({
-        query: mutation,
-        variables: {
-          input: {
-            ownerId: variant.id,
-            namespace: 'custom',
-            key: 'sucursales',
-            type: 'json',
-            value: JSON.stringify(merged)
-          }
-        }
-      })
+    `, {
+      mf: [{
+        ownerId: product.id,
+        namespace: 'custom',
+        key: 'sucursales',
+        type: 'json',
+        value: JSON.stringify(data)
+      }]
     });
 
-    const saveJson = await saveRes.json();
-    const errors = saveJson.data?.metafieldsSet?.userErrors;
-
-    if (errors && errors.length) {
+    const errors = save?.data?.metafieldsSet?.userErrors;
+    if (errors?.length)
       return res.status(400).json({ ok: false, error: errors[0].message });
-    }
 
-    return res.status(200).json({
-      ok: true,
-      handle,
-      sku,
-      sucursales: merged
-    });
+    return res.json({ ok: true });
 
   } catch (err) {
     console.error(err);
