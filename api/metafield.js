@@ -1,124 +1,99 @@
-// Handler para Next.js / Vercel
+// /api/metafield.js
 export default async function handler(req, res) {
-  // ======== CORS =========
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')
+    return res.status(405).json({ ok: false, error: 'Método no permitido' });
 
   try {
-    const { product_id, handle, value } = req.body;
+    const { handle, cambios } = req.body;
 
-    // ======== CONFIG ========
-    const host = 'mundo-jm-test.myshopify.com'; // Cambiar a tu tienda real
-    const token = process.env.SHOPIFY_ADMIN_TOKEN; // token de admin
-    const version = '2024-07'; // API version
+    if (!handle || !cambios || Object.keys(cambios).length === 0)
+      return res.status(400).json({ ok: false, error: 'Datos incompletos' });
 
-    if (!token) return res.status(500).json({ ok: false, error: "Falta el TOKEN en Vercel" });
+    const SHOPIFY_ADMIN = 'mundo-jm-test.myshopify.com'; // tienda de prueba
+    const API_VERSION = '2026-01';
+    const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN; // tu token de Admin API
 
-    // Determinar el GID
-    const idFinal = product_id || null;
-    let gid = null;
+    if (!TOKEN) return res.status(500).json({ ok: false, error: 'Falta el token de Shopify en Vercel' });
 
-    if (idFinal) {
-      gid = `gid://shopify/Product/${idFinal}`;
-    } else if (handle) {
-      // Si solo hay handle, necesitamos buscar el producto primero
-      const queryByHandle = `
-        query getProduct($handle: String!) {
-          productByHandle(handle: $handle) {
-            id
-          }
-        }
-      `;
-      const respHandle = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
+    // Función genérica para GraphQL
+    const gql = async (query, variables = {}) => {
+      const r = await fetch(`https://${SHOPIFY_ADMIN}/admin/api/${API_VERSION}/graphql.json`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': token
+          'X-Shopify-Access-Token': TOKEN
         },
-        body: JSON.stringify({ query: queryByHandle, variables: { handle } })
+        body: JSON.stringify({ query, variables })
       });
-      const jsonHandle = await respHandle.json();
-      if (!jsonHandle.data?.productByHandle) return res.status(404).json({ ok: false, error: "No se encontró el producto por handle" });
-      gid = jsonHandle.data.productByHandle.id;
-    } else {
-      return res.status(400).json({ ok: false, error: "Falta product_id o handle" });
-    }
+      return r.json();
+    };
 
-    // ======== Obtener stock actual (solo para info) ========
-    const queryCurrent = `
-      query getMetafields($id: ID!) {
-        product(id: $id) {
-          metafields(namespace: "custom", keys: ["sucursales"]) {
-            key
+    // 1️⃣ Obtener producto por handle
+    const prodRes = await gql(`
+      query ($handle: String!) {
+        productByHandle(handle: $handle) {
+          id
+          metafield(namespace:"custom", key:"sucursales") {
             value
           }
         }
       }
-    `;
-    const currentResp = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
-      body: JSON.stringify({ query: queryCurrent, variables: { id: gid } })
-    });
-    const currentJson = await currentResp.json();
-    let currentValues = [];
-    try {
-      if(currentJson.data.product.metafields.length > 0){
-        currentValues = JSON.parse(currentJson.data.product.metafields[0].value);
-      }
-    } catch(e) { currentValues = []; }
+    `, { handle });
 
-    // ======== Actualizar sucursales ========
-    const mutation = `
-      mutation metafieldsSet($m: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $m) {
+    const product = prodRes?.data?.productByHandle;
+    if (!product) return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
+
+    let data = { sucursales: [] };
+
+    // 2️⃣ Parsear metafield existente si hay
+    if (product.metafield?.value) {
+      try { data = JSON.parse(product.metafield.value); } catch(e){ /* ignorar */ }
+    }
+
+    // 3️⃣ Si no hay sucursales definidas, crearlas con 0
+    const nombres = Object.keys(cambios);
+    if (!data.sucursales || !data.sucursales.length) {
+      data.sucursales = nombres.map(s => ({ nombre: s, cantidad: 0 }));
+    }
+
+    // 4️⃣ Merge de cambios
+    data.sucursales.forEach(s => {
+      if (cambios[s.nombre] !== undefined) {
+        s.cantidad = Number(cambios[s.nombre]) || 0;
+      }
+    });
+
+    // 5️⃣ Guardar el metafield
+    const saveRes = await gql(`
+      mutation ($mf: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $mf) {
           metafields { id value }
           userErrors { field message }
         }
       }
-    `;
-
-    const variables = {
-      m: [{
-        ownerId: gid,
-        namespace: "custom",
-        key: "sucursales",
-        type: "json",
-        value: typeof value === 'object' ? JSON.stringify(value) : value
+    `, {
+      mf: [{
+        ownerId: product.id,
+        namespace: 'custom',
+        key: 'sucursales',
+        type: 'json',
+        value: JSON.stringify(data)
       }]
-    };
-
-    const updateResp = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
-      body: JSON.stringify({ query: mutation, variables })
     });
 
-    const updateJson = await updateResp.json();
+    const errors = saveRes?.data?.metafieldsSet?.userErrors;
+    if (errors && errors.length > 0)
+      return res.status(400).json({ ok: false, error: errors[0].message });
 
-    if(updateJson.errors || updateJson.data.metafieldsSet.userErrors.length > 0) {
-      return res.status(500).json({ 
-        ok: false, 
-        error: updateJson.errors || updateJson.data.metafieldsSet.userErrors 
-      });
-    }
+    return res.json({ ok: true, message: 'Metafield actualizado', sucursales: data.sucursales });
 
-    return res.status(200).json({
-      ok: true,
-      productId: gid,
-      currentStock: currentValues, // stock actual
-      updated: value
-    });
-
-  } catch(err) {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
