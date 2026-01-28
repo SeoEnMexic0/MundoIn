@@ -1,238 +1,102 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Disponibilidad en sucursales</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <style>
-    :root {
-      --bg: #f6f7f8;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --ok: #16a34a;
-      --bad: #dc2626;
-      --border: #e5e7eb;
-      --brand: #111827;
-    }
-
-    * {
-      box-sizing: border-box;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
-    }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    .wrapper {
-      max-width: 720px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.06);
-      padding: 24px;
-    }
-
-    h1 {
-      font-size: 22px;
-      margin: 0 0 6px;
-    }
-
-    .subtitle {
-      color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-
-    .options {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-
-    .option {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .option label {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .option select {
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #fff;
-      font-size: 14px;
-    }
-
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 16px 0;
-      font-weight: 600;
-    }
-
-    .status.ok { color: var(--ok); }
-    .status.bad { color: var(--bad); }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-
-    th {
-      color: var(--muted);
-      font-weight: 500;
-    }
-
-    .qty.ok { color: var(--ok); font-weight: 600; }
-    .qty.bad { color: var(--bad); font-weight: 600; }
-
-    .loader {
-      text-align: center;
-      padding: 20px;
-      color: var(--muted);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actualizar Sucursales — MundoIn</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:2rem; }
+.container { max-width:600px; margin:auto; background:#fff; padding:1.5rem; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.1);}
+h1 { font-size:1.5rem; margin-bottom:1rem; }
+table { width:100%; border-collapse:collapse; margin-bottom:1rem;}
+th,td { border:1px solid #ccc; padding:.5rem; text-align:center;}
+th { background:#eee; }
+input[type=number]{ width:60px; text-align:center;}
+button{ padding:.6rem 1.2rem; font-size:1rem; border:none; border-radius:8px; background:#22c55e; color:#fff; cursor:pointer;}
+button:disabled{ opacity:0.6; cursor:not-allowed;}
+</style>
 </head>
-
 <body>
+<div class="container">
+<h1>Actualizar sucursales — cama-luton</h1>
 
-<div class="wrapper">
-  <div class="card">
+<table>
+<thead>
+<tr>
+<th>Sucursal</th>
+<th>Cantidad</th>
+</tr>
+</thead>
+<tbody id="sucursales-table">
+<tr><td>WEB</td><td><input type="number" value="1" data-sucursal="WEB"></td></tr>
+<tr><td>Suc. Centro</td><td><input type="number" value="0" data-sucursal="Suc. Centro"></td></tr>
+<tr><td>Suc. Coyoacán</td><td><input type="number" value="0" data-sucursal="Suc. Coyoacán"></td></tr>
+<tr><td>Suc. Benito Juárez</td><td><input type="number" value="10" data-sucursal="Suc. Benito Juárez"></td></tr>
+<tr><td>Suc. Gustavo Baz</td><td><input type="number" value="12" data-sucursal="Suc. Gustavo Baz"></td></tr>
+<tr><td>Suc. Naucalpan</td><td><input type="number" value="0" data-sucursal="Suc. Naucalpan"></td></tr>
+<tr><td>Suc. Toluca</td><td><input type="number" value="0" data-sucursal="Suc. Toluca"></td></tr>
+<tr><td>Suc. Querétaro</td><td><input type="number" value="0" data-sucursal="Suc. Querétaro"></td></tr>
+<tr><td>Suc. Vallejo</td><td><input type="number" value="0" data-sucursal="Suc. Vallejo"></td></tr>
+<tr><td>Suc. Puebla</td><td><input type="number" value="0" data-sucursal="Suc. Puebla"></td></tr>
+</tbody>
+</table>
 
-    <h1>Cama Luton</h1>
-    <div class="subtitle">Disponibilidad por sucursal</div>
+<button id="updateBtn">Actualizar sucursales</button>
 
-    <!-- OPCIONES -->
-    <div class="options">
-      <div class="option">
-        <label>Tamaño</label>
-        <select id="opt-size">
-          <option value="Individual">Individual</option>
-        </select>
-      </div>
-
-      <div class="option">
-        <label>Color</label>
-        <select id="opt-color">
-          <option value="Gris">Gris</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- STATUS -->
-    <div id="status" class="status"></div>
-
-    <!-- TABLA -->
-    <div id="table"></div>
-
-  </div>
-</div>
+<div id="status" style="margin-top:1rem;color:#333;"></div>
 
 <script>
-/* ================= CONFIG ================= */
-const HANDLE = 'cama-luton';
+const STORE = 'mundo-jm-test.myshopify.com';
+const VERSION = '2024-07';
+const TOKEN = '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';
+const PRODUCT_ID = '49922626060590'; // cama-luton
 
-/* ================= ELEMENTOS ================= */
-const sizeSel = document.getElementById('opt-size');
-const colorSel = document.getElementById('opt-color');
-const statusEl = document.getElementById('status');
-const tableEl = document.getElementById('table');
+const btn = document.getElementById('updateBtn');
+const status = document.getElementById('status');
 
-/* ================= EVENTOS ================= */
-sizeSel.addEventListener('change', loadStock);
-colorSel.addEventListener('change', loadStock);
+btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    status.textContent = 'Actualizando...';
 
-/* ================= CARGA ================= */
-loadStock();
+    const inputs = document.querySelectorAll('#sucursales-table input');
+    const sucursales = [];
+    inputs.forEach(input => {
+        sucursales.push({
+            nombre: input.dataset.sucursal,
+            cantidad: Number(input.value),
+            mapa: '' // puedes poner URLs de Google Maps si quieres
+        });
+    });
 
-async function loadStock() {
-  statusEl.className = 'status';
-  statusEl.textContent = 'Cargando disponibilidad…';
-  tableEl.innerHTML = '<div class="loader">Consultando sucursales</div>';
+    try {
+        const res = await fetch('/api/metafield', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                product_id: PRODUCT_ID,
+                value: { sucursales },
+                store: STORE,
+                version: VERSION,
+                token: TOKEN
+            })
+        });
 
-  const opciones = [
-    { nombre: 'Tamaño', valor: sizeSel.value },
-    { nombre: 'Color', valor: colorSel.value }
-  ];
-
-  /*
-    👉 AQUÍ VA TU ENDPOINT REAL
-    Ejemplo futuro:
-    POST /api/read
-  */
-
-  // MOCK mientras
-  const data = {
-    sucursales: ['Chiapas 13', 'Roma', 'Polanco'],
-    cantidades: [2, 0, 1]
-  };
-
-  render(data);
-}
-
-/* ================= RENDER ================= */
-function render(data) {
-  const total = data.cantidades.reduce((a,b) => a + b, 0);
-
-  if (total > 0) {
-    statusEl.classList.add('ok');
-    statusEl.textContent = 'Disponible en tiendas físicas';
-  } else {
-    statusEl.classList.add('bad');
-    statusEl.textContent = 'Agotado en sucursales';
-  }
-
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Sucursal</th>
-          <th>Disponibilidad</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  data.sucursales.forEach((suc, i) => {
-    const q = data.cantidades[i];
-    html += `
-      <tr>
-        <td>${suc}</td>
-        <td class="qty ${q > 0 ? 'ok' : 'bad'}">
-          ${q > 0 ? q + ' piezas' : 'Agotado'}
-        </td>
-      </tr>
-    `;
-  });
-
-  html += '</tbody></table>';
-  tableEl.innerHTML = html;
-}
+        const data = await res.json();
+        if(data.ok){
+            status.textContent = '✅ Sucursales actualizadas correctamente.';
+            console.log('Respuesta Shopify:', data);
+        } else {
+            status.textContent = '❌ Error: ' + JSON.stringify(data.error || data.details);
+            console.error(data);
+        }
+    } catch(e){
+        status.textContent = '❌ Fallo en la petición: ' + e.message;
+        console.error(e);
+    } finally{
+        btn.disabled = false;
+    }
+});
 </script>
-
+</div>
 </body>
 </html>
