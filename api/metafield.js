@@ -1,238 +1,63 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>Disponibilidad en sucursales</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  <style>
-    :root {
-      --bg: #f6f7f8;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --ok: #16a34a;
-      --bad: #dc2626;
-      --border: #e5e7eb;
-      --brand: #111827;
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  try {
+    const { store, version, token, product_id, value } = req.body;
+
+    if (!store || !version || !token || !product_id || !value) {
+      return res.status(400).json({ ok: false, error: 'Faltan parámetros requeridos' });
     }
 
-    * {
-      box-sizing: border-box;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
-    }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    .wrapper {
-      max-width: 720px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.06);
-      padding: 24px;
-    }
-
-    h1 {
-      font-size: 22px;
-      margin: 0 0 6px;
-    }
-
-    .subtitle {
-      color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-
-    .options {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-
-    .option {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .option label {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .option select {
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #fff;
-      font-size: 14px;
-    }
-
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 16px 0;
-      font-weight: 600;
-    }
-
-    .status.ok { color: var(--ok); }
-    .status.bad { color: var(--bad); }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-
-    th {
-      color: var(--muted);
-      font-weight: 500;
-    }
-
-    .qty.ok { color: var(--ok); font-weight: 600; }
-    .qty.bad { color: var(--bad); font-weight: 600; }
-
-    .loader {
-      text-align: center;
-      padding: 20px;
-      color: var(--muted);
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="wrapper">
-  <div class="card">
-
-    <h1>Cama Luton</h1>
-    <div class="subtitle">Disponibilidad por sucursal</div>
-
-    <!-- OPCIONES -->
-    <div class="options">
-      <div class="option">
-        <label>Tamaño</label>
-        <select id="opt-size">
-          <option value="Individual">Individual</option>
-        </select>
-      </div>
-
-      <div class="option">
-        <label>Color</label>
-        <select id="opt-color">
-          <option value="Gris">Gris</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- STATUS -->
-    <div id="status" class="status"></div>
-
-    <!-- TABLA -->
-    <div id="table"></div>
-
-  </div>
-</div>
-
-<script>
-/* ================= CONFIG ================= */
-const HANDLE = 'cama-luton';
-
-/* ================= ELEMENTOS ================= */
-const sizeSel = document.getElementById('opt-size');
-const colorSel = document.getElementById('opt-color');
-const statusEl = document.getElementById('status');
-const tableEl = document.getElementById('table');
-
-/* ================= EVENTOS ================= */
-sizeSel.addEventListener('change', loadStock);
-colorSel.addEventListener('change', loadStock);
-
-/* ================= CARGA ================= */
-loadStock();
-
-async function loadStock() {
-  statusEl.className = 'status';
-  statusEl.textContent = 'Cargando disponibilidad…';
-  tableEl.innerHTML = '<div class="loader">Consultando sucursales</div>';
-
-  const opciones = [
-    { nombre: 'Tamaño', valor: sizeSel.value },
-    { nombre: 'Color', valor: colorSel.value }
-  ];
-
-  /*
-    👉 AQUÍ VA TU ENDPOINT REAL
-    Ejemplo futuro:
-    POST /api/read
-  */
-
-  // MOCK mientras
-  const data = {
-    sucursales: ['Chiapas 13', 'Roma', 'Polanco'],
-    cantidades: [2, 0, 1]
-  };
-
-  render(data);
-}
-
-/* ================= RENDER ================= */
-function render(data) {
-  const total = data.cantidades.reduce((a,b) => a + b, 0);
-
-  if (total > 0) {
-    statusEl.classList.add('ok');
-    statusEl.textContent = 'Disponible en tiendas físicas';
-  } else {
-    statusEl.classList.add('bad');
-    statusEl.textContent = 'Agotado en sucursales';
-  }
-
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Sucursal</th>
-          <th>Disponibilidad</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  data.sucursales.forEach((suc, i) => {
-    const q = data.cantidades[i];
-    html += `
-      <tr>
-        <td>${suc}</td>
-        <td class="qty ${q > 0 ? 'ok' : 'bad'}">
-          ${q > 0 ? q + ' piezas' : 'Agotado'}
-        </td>
-      </tr>
+    const gid = `gid://shopify/Product/${product_id}`;
+    
+    const query = `
+      mutation metafieldsSet($m: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $m) {
+          metafields { id namespace key value type }
+          userErrors { field message }
+        }
+      }
     `;
-  });
 
-  html += '</tbody></table>';
-  tableEl.innerHTML = html;
+    const variables = {
+      m: [{
+        ownerId: gid,
+        namespace: "custom",
+        key: "sucursales",
+        type: "json",
+        value: typeof value === 'object' ? JSON.stringify(value) : value
+      }]
+    };
+
+    const response = await fetch(`https://${store}/admin/api/${version}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': token
+      },
+      body: JSON.stringify({ query, variables })
+    });
+
+    const result = await response.json();
+
+    if(result.errors || (result.data?.metafieldsSet?.userErrors?.length > 0)) {
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Shopify rechazó la petición', 
+        details: result.errors || result.data.metafieldsSet.userErrors 
+      });
+    }
+
+    return res.status(200).json({ 
+      ok: true, 
+      metafield: result.data.metafieldsSet.metafields[0] 
+    });
+
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 }
-</script>
-
-</body>
-</html>
