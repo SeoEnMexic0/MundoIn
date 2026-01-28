@@ -3,100 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Actualizar Sucursales — MundoIn</title>
+<title>Metafields Sync - Sucursales</title>
 <style>
-body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:2rem; }
-.container { max-width:600px; margin:auto; background:#fff; padding:1.5rem; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.1);}
-h1 { font-size:1.5rem; margin-bottom:1rem; }
-table { width:100%; border-collapse:collapse; margin-bottom:1rem;}
-th,td { border:1px solid #ccc; padding:.5rem; text-align:center;}
-th { background:#eee; }
-input[type=number]{ width:60px; text-align:center;}
-button{ padding:.6rem 1.2rem; font-size:1rem; border:none; border-radius:8px; background:#22c55e; color:#fff; cursor:pointer;}
-button:disabled{ opacity:0.6; cursor:not-allowed;}
+  body { font-family: Arial, sans-serif; background:#f5f5f5; color:#111; padding:2rem; }
+  h1 { text-align:center; }
+  table { width:100%; border-collapse: collapse; margin-top:1rem; }
+  th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+  th { background:#eee; }
+  input[type=number] { width:60px; }
+  button { margin-top:1rem; padding:10px 20px; font-weight:bold; cursor:pointer; }
+  .success { color:green; }
+  .error { color:red; }
 </style>
 </head>
 <body>
-<div class="container">
-<h1>Actualizar sucursales — cama-luton</h1>
+<h1>Actualizar sucursales</h1>
 
-<table>
-<thead>
-<tr>
-<th>Sucursal</th>
-<th>Cantidad</th>
-</tr>
-</thead>
-<tbody id="sucursales-table">
-<tr><td>WEB</td><td><input type="number" value="1" data-sucursal="WEB"></td></tr>
-<tr><td>Suc. Centro</td><td><input type="number" value="0" data-sucursal="Suc. Centro"></td></tr>
-<tr><td>Suc. Coyoacán</td><td><input type="number" value="0" data-sucursal="Suc. Coyoacán"></td></tr>
-<tr><td>Suc. Benito Juárez</td><td><input type="number" value="10" data-sucursal="Suc. Benito Juárez"></td></tr>
-<tr><td>Suc. Gustavo Baz</td><td><input type="number" value="12" data-sucursal="Suc. Gustavo Baz"></td></tr>
-<tr><td>Suc. Naucalpan</td><td><input type="number" value="0" data-sucursal="Suc. Naucalpan"></td></tr>
-<tr><td>Suc. Toluca</td><td><input type="number" value="0" data-sucursal="Suc. Toluca"></td></tr>
-<tr><td>Suc. Querétaro</td><td><input type="number" value="0" data-sucursal="Suc. Querétaro"></td></tr>
-<tr><td>Suc. Vallejo</td><td><input type="number" value="0" data-sucursal="Suc. Vallejo"></td></tr>
-<tr><td>Suc. Puebla</td><td><input type="number" value="0" data-sucursal="Suc. Puebla"></td></tr>
-</tbody>
+<table id="sucursalesTable">
+  <thead>
+    <tr>
+      <th>Sucursal</th>
+      <th>Cantidad actual</th>
+      <th>Nueva cantidad</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>WEB</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Centro</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Coyoacán</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Benito Juárez</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Gustavo Baz</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Naucalpan</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Toluca</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Querétaro</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Vallejo</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+    <tr><td>Suc. Puebla</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
+  </tbody>
 </table>
 
 <button id="updateBtn">Actualizar sucursales</button>
-
-<div id="status" style="margin-top:1rem;color:#333;"></div>
+<div id="message"></div>
 
 <script>
-const STORE = 'mundo-jm-test.myshopify.com';
-const VERSION = '2024-07';
-const TOKEN = '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';
-const PRODUCT_ID = '49922626060590'; // cama-luton
+const STORE = 'mundo-jm-test.myshopify.com'; // tu tienda
+const PRODUCT_ID = '49922626060590'; // el producto a actualizar
+const API = '/api/metafield';
 
 const btn = document.getElementById('updateBtn');
-const status = document.getElementById('status');
+const message = document.getElementById('message');
+
+async function fetchCurrentStock() {
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ product_id: PRODUCT_ID, value: [] })
+    });
+    const data = await res.json();
+    if(data.ok && data.currentStock) {
+      const rows = document.querySelectorAll('#sucursalesTable tbody tr');
+      data.currentStock.forEach((item, i)=>{
+        if(rows[i]) rows[i].querySelector('.current').textContent = item.cantidad || 0;
+      });
+    }
+  } catch(e) { console.error(e); }
+}
+
+// Inicial: mostrar stock actual
+fetchCurrentStock();
 
 btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    status.textContent = 'Actualizando...';
+  const rows = document.querySelectorAll('#sucursalesTable tbody tr');
+  const value = [];
+  rows.forEach(row => {
+    const nombre = row.cells[0].textContent.trim();
+    const cantidad = parseInt(row.cells[2].querySelector('input').value || '0', 10);
+    value.push({ nombre, cantidad });
+  });
 
-    const inputs = document.querySelectorAll('#sucursales-table input');
-    const sucursales = [];
-    inputs.forEach(input => {
-        sucursales.push({
-            nombre: input.dataset.sucursal,
-            cantidad: Number(input.value),
-            mapa: '' // puedes poner URLs de Google Maps si quieres
-        });
+  btn.disabled = true;
+  message.textContent = 'Actualizando...';
+  message.className = '';
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ product_id: PRODUCT_ID, value })
     });
-
-    try {
-        const res = await fetch('/api/metafield', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({
-                product_id: PRODUCT_ID,
-                value: { sucursales },
-                store: STORE,
-                version: VERSION,
-                token: TOKEN
-            })
-        });
-
-        const data = await res.json();
-        if(data.ok){
-            status.textContent = '✅ Sucursales actualizadas correctamente.';
-            console.log('Respuesta Shopify:', data);
-        } else {
-            status.textContent = '❌ Error: ' + JSON.stringify(data.error || data.details);
-            console.error(data);
-        }
-    } catch(e){
-        status.textContent = '❌ Fallo en la petición: ' + e.message;
-        console.error(e);
-    } finally{
-        btn.disabled = false;
+    const data = await res.json();
+    if(data.ok) {
+      message.textContent = '✅ Sucursales actualizadas correctamente';
+      message.className = 'success';
+      fetchCurrentStock(); // refrescar stock
+    } else {
+      message.textContent = '❌ Error: ' + JSON.stringify(data.error);
+      message.className = 'error';
     }
+  } catch(e) {
+    message.textContent = '❌ Error de conexión: ' + e.message;
+    message.className = 'error';
+  } finally {
+    btn.disabled = false;
+  }
 });
 </script>
-</div>
 </body>
 </html>
