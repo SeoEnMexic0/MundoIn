@@ -1,41 +1,52 @@
 export default async function handler(req, res) {
+  /* ================= CORS ================= */
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')
+  if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Método no permitido' });
+  }
 
   try {
     const { handle, opciones, cambios } = req.body;
 
-    if (!handle || !opciones || !cambios)
-      return res.status(400).json({ ok: false, error: 'Datos incompletos' });
+    if (!handle || !Array.isArray(opciones) || !cambios) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Datos incompletos'
+      });
+    }
 
-    const SHOP = 'mundoin.mx';
+    /* ================= SHOPIFY ================= */
     const ADMIN = 'mundo-in.myshopify.com';
     const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
     const API = '2026-01';
 
     const gql = async (query, variables = {}) => {
-      const r = await fetch(`https://${ADMIN}/admin/api/${API}/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': TOKEN
-        },
-        body: JSON.stringify({ query, variables })
-      });
-      return r.json();
+      const r = await fetch(
+        `https://${ADMIN}/admin/api/${API}/graphql.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': TOKEN
+          },
+          body: JSON.stringify({ query, variables })
+        }
+      );
+      const json = await r.json();
+      if (json.errors) throw new Error(json.errors[0].message);
+      return json;
     };
 
-    /* === PRODUCTO === */
+    /* ================= OBTENER PRODUCTO ================= */
     const productRes = await gql(`
       query ($handle: String!) {
         productByHandle(handle: $handle) {
           id
-          metafield(namespace:"custom", key:"sucursales") {
+          metafield(namespace: "custom", key: "sucursales") {
             value
           }
         }
@@ -43,26 +54,60 @@ export default async function handler(req, res) {
     `, { handle });
 
     const product = productRes?.data?.productByHandle;
-    if (!product)
-      return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
+    if (!product) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Producto no encontrado'
+      });
+    }
 
-    let data = JSON.parse(product.metafield.value);
+    /* ================= DATA BASE ================= */
+    let data;
+    try {
+      data = product.metafield?.value
+        ? JSON.parse(product.metafield.value)
+        : { sucursales: [], variantes: [] };
+    } catch {
+      data = { sucursales: [], variantes: [] };
+    }
+
+    /* ================= VALIDAR SUCURSALES ================= */
+    if (!Array.isArray(data.sucursales)) data.sucursales = [];
+    if (!Array.isArray(data.variantes)) data.variantes = [];
 
     const SUCS = data.sucursales.map(s => s.nombre);
 
-    /* === BUSCAR VARIANTE POR OPCIONES === */
-    const variante = data.variantes.find(v =>
+    /* ================= BUSCAR VARIANTE ================= */
+    let variante = data.variantes.find(v =>
       opciones.every(o =>
-        v.opciones.some(vo => vo.nombre === o.nombre && vo.valor === o.valor)
+        v.opciones?.some(
+          vo => vo.nombre === o.nombre && vo.valor === o.valor
+        )
       )
     );
 
-    if (!variante)
-      return res.status(404).json({ ok: false, error: 'Variante no encontrada' });
+    /* ================= CREAR VARIANTE SI NO EXISTE ================= */
+    if (!variante) {
+      variante = {
+        opciones,
+        cantidades: Array(SUCS.length).fill(0)
+      };
+      data.variantes.push(variante);
+    }
 
-    variante.cantidades ||= Array(SUCS.length).fill(0);
+    /* ================= ASEGURAR CANTIDADES ================= */
+    if (!Array.isArray(variante.cantidades)) {
+      variante.cantidades = Array(SUCS.length).fill(0);
+    }
 
-    /* === MERGE SOLO CAMBIOS === */
+    if (variante.cantidades.length < SUCS.length) {
+      variante.cantidades = [
+        ...variante.cantidades,
+        ...Array(SUCS.length - variante.cantidades.length).fill(0)
+      ];
+    }
+
+    /* ================= MERGE CAMBIOS ================= */
     Object.entries(cambios).forEach(([sucursal, valor]) => {
       const idx = SUCS.indexOf(sucursal);
       if (idx === -1) return;
@@ -72,11 +117,13 @@ export default async function handler(req, res) {
       }
     });
 
-    /* === GUARDAR === */
+    /* ================= GUARDAR METAFIELD ================= */
     const save = await gql(`
       mutation ($mf: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $mf) {
-          userErrors { message }
+          userErrors {
+            message
+          }
         }
       }
     `, {
@@ -90,13 +137,20 @@ export default async function handler(req, res) {
     });
 
     const errors = save?.data?.metafieldsSet?.userErrors;
-    if (errors?.length)
-      return res.status(400).json({ ok: false, error: errors[0].message });
+    if (errors?.length) {
+      return res.status(400).json({
+        ok: false,
+        error: errors[0].message
+      });
+    }
 
     return res.json({ ok: true });
 
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error('METAFIELD ERROR:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || 'Error interno'
+    });
   }
 }
