@@ -1,79 +1,236 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Stock por sucursal</title>
-<style>
-table { border-collapse: collapse; width: 100%; }
-td, th { border: 1px solid #ccc; padding: 6px; text-align: center; }
-input { width: 70px; }
-button { padding: 10px 20px; margin-top: 10px; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Disponibilidad en sucursales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    :root {
+      --bg: #f6f7f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --ok: #16a34a;
+      --bad: #dc2626;
+      --border: #e5e7eb;
+      --brand: #111827;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrapper {
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.06);
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .options {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .option {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .option label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .option select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+      font-weight: 600;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .qty.ok { color: var(--ok); font-weight: 600; }
+    .qty.bad { color: var(--bad); font-weight: 600; }
+
+    .loader {
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Cama Luton – Individual / Gris</h2>
+<div class="wrapper">
+  <div class="card">
 
-<table id="tabla">
-  <thead>
-    <tr>
-      <th>Sucursal</th>
-      <th>Stock actual</th>
-      <th>Nuevo</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+    <h1>Cama Luton</h1>
+    <div class="subtitle">Disponibilidad por sucursal</div>
 
-<button onclick="guardar()">Guardar cambios</button>
+    <!-- OPCIONES -->
+    <div class="options">
+      <div class="option">
+        <label>Tamaño</label>
+        <select id="opt-size">
+          <option value="Individual">Individual</option>
+        </select>
+      </div>
+
+      <div class="option">
+        <label>Color</label>
+        <select id="opt-color">
+          <option value="Gris">Gris</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div id="status" class="status"></div>
+
+    <!-- TABLA -->
+    <div id="table"></div>
+
+  </div>
+</div>
 
 <script>
+/* ================= CONFIG ================= */
 const HANDLE = 'cama-luton';
 
-const OPCIONES = [
-  { nombre: 'Tamaño', valor: 'Individual' },
-  { nombre: 'Color', valor: 'Gris' }
-];
+/* ================= ELEMENTOS ================= */
+const sizeSel = document.getElementById('opt-size');
+const colorSel = document.getElementById('opt-color');
+const statusEl = document.getElementById('status');
+const tableEl = document.getElementById('table');
 
-const DATA = {
-  sucursales: [
-    "WEB","Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez",
-    "Suc. Gustavo Baz","Suc. Naucalpan","Suc. Toluca",
-    "Suc. Querétaro","Suc. Vallejo","Suc. Puebla"
-  ],
-  cantidades: [10,5,5,99,5,5,5,5,5,5]
-};
+/* ================= EVENTOS ================= */
+sizeSel.addEventListener('change', loadStock);
+colorSel.addEventListener('change', loadStock);
 
-const tbody = document.querySelector('#tabla tbody');
+/* ================= CARGA ================= */
+loadStock();
 
-DATA.sucursales.forEach((suc, i) => {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td>${suc}</td>
-    <td>${DATA.cantidades[i]}</td>
-    <td><input data-suc="${suc}" placeholder="="></td>
+async function loadStock() {
+  statusEl.className = 'status';
+  statusEl.textContent = 'Cargando disponibilidad…';
+  tableEl.innerHTML = '<div class="loader">Consultando sucursales</div>';
+
+  const opciones = [
+    { nombre: 'Tamaño', valor: sizeSel.value },
+    { nombre: 'Color', valor: colorSel.value }
+  ];
+
+  /*
+    👉 AQUÍ VA TU ENDPOINT REAL
+    Ejemplo futuro:
+    POST /api/read
+  */
+
+  // MOCK mientras
+  const data = {
+    sucursales: ['Chiapas 13', 'Roma', 'Polanco'],
+    cantidades: [2, 0, 1]
+  };
+
+  render(data);
+}
+
+/* ================= RENDER ================= */
+function render(data) {
+  const total = data.cantidades.reduce((a,b) => a + b, 0);
+
+  if (total > 0) {
+    statusEl.classList.add('ok');
+    statusEl.textContent = 'Disponible en tiendas físicas';
+  } else {
+    statusEl.classList.add('bad');
+    statusEl.textContent = 'Agotado en sucursales';
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Sucursal</th>
+          <th>Disponibilidad</th>
+        </tr>
+      </thead>
+      <tbody>
   `;
-  tbody.appendChild(tr);
-});
 
-async function guardar() {
-  const cambios = {};
-  document.querySelectorAll('input').forEach(i => {
-    if (i.value !== '') cambios[i.dataset.suc] = i.value;
+  data.sucursales.forEach((suc, i) => {
+    const q = data.cantidades[i];
+    html += `
+      <tr>
+        <td>${suc}</td>
+        <td class="qty ${q > 0 ? 'ok' : 'bad'}">
+          ${q > 0 ? q + ' piezas' : 'Agotado'}
+        </td>
+      </tr>
+    `;
   });
 
-  const r = await fetch('/api/metafield', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      handle: HANDLE,
-      opciones: OPCIONES,
-      cambios
-    })
-  });
-
-  const j = await r.json();
-  alert(j.ok ? '✔ Guardado' : '✗ Error');
+  html += '</tbody></table>';
+  tableEl.innerHTML = html;
 }
 </script>
 
