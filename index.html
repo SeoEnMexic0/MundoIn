@@ -3,110 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Metafields Sync - Sucursales</title>
+<title>Actualizar sucursales — Cama Luton</title>
 <style>
-  body { font-family: Arial, sans-serif; background:#f5f5f5; color:#111; padding:2rem; }
-  h1 { text-align:center; }
-  table { width:100%; border-collapse: collapse; margin-top:1rem; }
-  th, td { border:1px solid #ccc; padding:8px; text-align:center; }
-  th { background:#eee; }
-  input[type=number] { width:60px; }
-  button { margin-top:1rem; padding:10px 20px; font-weight:bold; cursor:pointer; }
-  .success { color:green; }
-  .error { color:red; }
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --primary: #22c55e;
+    --border: #1f2937;
+    --success: #16a34a;
+    --error: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:2rem; }
+  h1 { margin-bottom:0.5rem; font-size:1.8rem; text-align:center; }
+  p { margin-top:0; color: var(--muted); text-align:center; margin-bottom:2rem; }
+
+  table { width: 100%; max-width:800px; border-collapse: collapse; background: var(--panel); border-radius:12px; overflow:hidden; margin-bottom:1rem; }
+  th, td { padding: 10px; text-align: center; border-bottom:1px solid var(--border); }
+  th { background: rgba(255,255,255,0.05); font-weight:600; }
+  tr:last-child td { border-bottom:none; }
+  input[type=number] { width:60px; padding:5px; border-radius:6px; border:1px solid var(--border); text-align:center; background:#0b1220; color:var(--text); }
+
+  button { padding:12px 24px; border:none; border-radius:12px; background: var(--primary); color:#fff; font-weight:600; cursor:pointer; transition:0.2s; }
+  button:hover { filter:brightness(1.05); }
+  button:disabled { opacity:0.6; cursor:not-allowed; }
+
+  .status { margin-top:1rem; font-weight:600; text-align:center; }
+  .status.ok { color: var(--success); }
+  .status.error { color: var(--error); }
 </style>
 </head>
 <body>
-<h1>Actualizar sucursales</h1>
 
-<table id="sucursalesTable">
+<h1>Cama Luton — Individual / Gris</h1>
+<p>Actualiza el stock de cada sucursal directamente aquí.</p>
+
+<table id="tabla">
   <thead>
     <tr>
       <th>Sucursal</th>
-      <th>Cantidad actual</th>
+      <th>Stock actual</th>
       <th>Nueva cantidad</th>
     </tr>
   </thead>
-  <tbody>
-    <tr><td>WEB</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Centro</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Coyoacán</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Benito Juárez</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Gustavo Baz</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Naucalpan</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Toluca</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Querétaro</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Vallejo</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-    <tr><td>Suc. Puebla</td><td class="current">0</td><td><input type="number" value="0"></td></tr>
-  </tbody>
+  <tbody></tbody>
 </table>
 
-<button id="updateBtn">Actualizar sucursales</button>
-<div id="message"></div>
+<button id="guardarBtn">Actualizar sucursales</button>
+<div id="status" class="status"></div>
 
 <script>
-const STORE = 'mundo-jm-test.myshopify.com'; // tu tienda
-const PRODUCT_ID = '49922626060590'; // el producto a actualizar
-const API = '/api/metafield';
+  // ======= CONFIG =======
+  const HANDLE = 'cama-luton';
+  const SUCURSALES = ["Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez","Suc. Gustavo Baz","Suc. Naucalpan","Suc. Toluca","Suc. Querétaro","Suc. Vallejo","Suc. Puebla"];
+  const TOKEN = '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'; // token del Admin API
+  const API_URL = '/api/metafield'; // endpoint Vercel
+  // ======================
 
-const btn = document.getElementById('updateBtn');
-const message = document.getElementById('message');
+  const tbody = document.querySelector('#tabla tbody');
+  const statusEl = document.getElementById('status');
 
-async function fetchCurrentStock() {
-  try {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ product_id: PRODUCT_ID, value: [] })
-    });
-    const data = await res.json();
-    if(data.ok && data.currentStock) {
-      const rows = document.querySelectorAll('#sucursalesTable tbody tr');
-      data.currentStock.forEach((item, i)=>{
-        if(rows[i]) rows[i].querySelector('.current').textContent = item.cantidad || 0;
-      });
-    }
-  } catch(e) { console.error(e); }
-}
+  // Stock de prueba, en producción esto se trae de Shopify
+  const STOCK_ACTUAL = [0,0,10,12,0,0,0,0,0];
 
-// Inicial: mostrar stock actual
-fetchCurrentStock();
-
-btn.addEventListener('click', async () => {
-  const rows = document.querySelectorAll('#sucursalesTable tbody tr');
-  const value = [];
-  rows.forEach(row => {
-    const nombre = row.cells[0].textContent.trim();
-    const cantidad = parseInt(row.cells[2].querySelector('input').value || '0', 10);
-    value.push({ nombre, cantidad });
+  SUCURSALES.forEach((suc,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${suc}</td>
+      <td id="stock-${i}">${STOCK_ACTUAL[i]}</td>
+      <td><input type="number" min="0" data-suc="${suc}" value="${STOCK_ACTUAL[i]}"></td>
+    `;
+    tbody.appendChild(tr);
   });
 
-  btn.disabled = true;
-  message.textContent = 'Actualizando...';
-  message.className = '';
+  async function guardar() {
+    statusEl.textContent = 'Guardando...';
+    statusEl.className = 'status';
 
-  try {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ product_id: PRODUCT_ID, value })
+    const cambios = {};
+    document.querySelectorAll('input[type=number]').forEach(input => {
+      const val = Number(input.value);
+      if(!isNaN(val)) cambios[input.dataset.suc] = val;
     });
-    const data = await res.json();
-    if(data.ok) {
-      message.textContent = '✅ Sucursales actualizadas correctamente';
-      message.className = 'success';
-      fetchCurrentStock(); // refrescar stock
-    } else {
-      message.textContent = '❌ Error: ' + JSON.stringify(data.error);
-      message.className = 'error';
+
+    try {
+      const res = await fetch(API_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ handle: HANDLE, cambios })
+      });
+
+      const data = await res.json();
+
+      if(data.ok){
+        statusEl.textContent = '✔ Sucursales actualizadas correctamente';
+        statusEl.classList.add('ok');
+        // Actualizar stock actual en la tabla
+        SUCURSALES.forEach((suc,i)=>{
+          const val = cambios[suc] ?? STOCK_ACTUAL[i];
+          document.getElementById(`stock-${i}`).textContent = val;
+        });
+      } else {
+        statusEl.textContent = '✗ Error: ' + (data.error || 'Sin detalles');
+        statusEl.classList.add('error');
+      }
+    } catch(e){
+      statusEl.textContent = '✗ Error: ' + e.message;
+      statusEl.classList.add('error');
     }
-  } catch(e) {
-    message.textContent = '❌ Error de conexión: ' + e.message;
-    message.className = 'error';
-  } finally {
-    btn.disabled = false;
   }
-});
+
+  document.getElementById('guardarBtn').addEventListener('click', guardar);
 </script>
+
 </body>
 </html>
