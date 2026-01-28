@@ -1,156 +1,238 @@
-export default async function handler(req, res) {
-  /* ================= CORS ================= */
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Disponibilidad en sucursales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Método no permitido' });
-  }
-
-  try {
-    const { handle, opciones, cambios } = req.body;
-
-    if (!handle || !Array.isArray(opciones) || !cambios) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Datos incompletos'
-      });
+  <style>
+    :root {
+      --bg: #f6f7f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --ok: #16a34a;
+      --bad: #dc2626;
+      --border: #e5e7eb;
+      --brand: #111827;
     }
 
-    /* ================= SHOPIFY ================= */
-    const ADMIN = 'mundo-in.myshopify.com';
-    const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-    const API = '2026-01';
-
-    const gql = async (query, variables = {}) => {
-      const r = await fetch(
-        `https://${ADMIN}/admin/api/${API}/graphql.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': TOKEN
-          },
-          body: JSON.stringify({ query, variables })
-        }
-      );
-      const json = await r.json();
-      if (json.errors) throw new Error(json.errors[0].message);
-      return json;
-    };
-
-    /* ================= OBTENER PRODUCTO ================= */
-    const productRes = await gql(`
-      query ($handle: String!) {
-        productByHandle(handle: $handle) {
-          id
-          metafield(namespace: "custom", key: "sucursales") {
-            value
-          }
-        }
-      }
-    `, { handle });
-
-    const product = productRes?.data?.productByHandle;
-    if (!product) {
-      return res.status(404).json({
-        ok: false,
-        error: 'Producto no encontrado'
-      });
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
     }
 
-    /* ================= DATA BASE ================= */
-    let data;
-    try {
-      data = product.metafield?.value
-        ? JSON.parse(product.metafield.value)
-        : { sucursales: [], variantes: [] };
-    } catch {
-      data = { sucursales: [], variantes: [] };
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    /* ================= VALIDAR SUCURSALES ================= */
-    if (!Array.isArray(data.sucursales)) data.sucursales = [];
-    if (!Array.isArray(data.variantes)) data.variantes = [];
-
-    const SUCS = data.sucursales.map(s => s.nombre);
-
-    /* ================= BUSCAR VARIANTE ================= */
-    let variante = data.variantes.find(v =>
-      opciones.every(o =>
-        v.opciones?.some(
-          vo => vo.nombre === o.nombre && vo.valor === o.valor
-        )
-      )
-    );
-
-    /* ================= CREAR VARIANTE SI NO EXISTE ================= */
-    if (!variante) {
-      variante = {
-        opciones,
-        cantidades: Array(SUCS.length).fill(0)
-      };
-      data.variantes.push(variante);
+    .wrapper {
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 20px;
     }
 
-    /* ================= ASEGURAR CANTIDADES ================= */
-    if (!Array.isArray(variante.cantidades)) {
-      variante.cantidades = Array(SUCS.length).fill(0);
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.06);
+      padding: 24px;
     }
 
-    if (variante.cantidades.length < SUCS.length) {
-      variante.cantidades = [
-        ...variante.cantidades,
-        ...Array(SUCS.length - variante.cantidades.length).fill(0)
-      ];
+    h1 {
+      font-size: 22px;
+      margin: 0 0 6px;
     }
 
-    /* ================= MERGE CAMBIOS ================= */
-    Object.entries(cambios).forEach(([sucursal, valor]) => {
-      const idx = SUCS.indexOf(sucursal);
-      if (idx === -1) return;
-
-      if (valor !== null && valor !== undefined && valor !== '') {
-        variante.cantidades[idx] = Number(valor);
-      }
-    });
-
-    /* ================= GUARDAR METAFIELD ================= */
-    const save = await gql(`
-      mutation ($mf: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $mf) {
-          userErrors {
-            message
-          }
-        }
-      }
-    `, {
-      mf: [{
-        ownerId: product.id,
-        namespace: 'custom',
-        key: 'sucursales',
-        type: 'json',
-        value: JSON.stringify(data)
-      }]
-    });
-
-    const errors = save?.data?.metafieldsSet?.userErrors;
-    if (errors?.length) {
-      return res.status(400).json({
-        ok: false,
-        error: errors[0].message
-      });
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 20px;
     }
 
-    return res.json({ ok: true });
+    .options {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
 
-  } catch (err) {
-    console.error('METAFIELD ERROR:', err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message || 'Error interno'
-    });
-  }
+    .option {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .option label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .option select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+      font-weight: 600;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .qty.ok { color: var(--ok); font-weight: 600; }
+    .qty.bad { color: var(--bad); font-weight: 600; }
+
+    .loader {
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="wrapper">
+  <div class="card">
+
+    <h1>Cama Luton</h1>
+    <div class="subtitle">Disponibilidad por sucursal</div>
+
+    <!-- OPCIONES -->
+    <div class="options">
+      <div class="option">
+        <label>Tamaño</label>
+        <select id="opt-size">
+          <option value="Individual">Individual</option>
+        </select>
+      </div>
+
+      <div class="option">
+        <label>Color</label>
+        <select id="opt-color">
+          <option value="Gris">Gris</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div id="status" class="status"></div>
+
+    <!-- TABLA -->
+    <div id="table"></div>
+
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const HANDLE = 'cama-luton';
+
+/* ================= ELEMENTOS ================= */
+const sizeSel = document.getElementById('opt-size');
+const colorSel = document.getElementById('opt-color');
+const statusEl = document.getElementById('status');
+const tableEl = document.getElementById('table');
+
+/* ================= EVENTOS ================= */
+sizeSel.addEventListener('change', loadStock);
+colorSel.addEventListener('change', loadStock);
+
+/* ================= CARGA ================= */
+loadStock();
+
+async function loadStock() {
+  statusEl.className = 'status';
+  statusEl.textContent = 'Cargando disponibilidad…';
+  tableEl.innerHTML = '<div class="loader">Consultando sucursales</div>';
+
+  const opciones = [
+    { nombre: 'Tamaño', valor: sizeSel.value },
+    { nombre: 'Color', valor: colorSel.value }
+  ];
+
+  /*
+    👉 AQUÍ VA TU ENDPOINT REAL
+    Ejemplo futuro:
+    POST /api/read
+  */
+
+  // MOCK mientras
+  const data = {
+    sucursales: ['Chiapas 13', 'Roma', 'Polanco'],
+    cantidades: [2, 0, 1]
+  };
+
+  render(data);
 }
+
+/* ================= RENDER ================= */
+function render(data) {
+  const total = data.cantidades.reduce((a,b) => a + b, 0);
+
+  if (total > 0) {
+    statusEl.classList.add('ok');
+    statusEl.textContent = 'Disponible en tiendas físicas';
+  } else {
+    statusEl.classList.add('bad');
+    statusEl.textContent = 'Agotado en sucursales';
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Sucursal</th>
+          <th>Disponibilidad</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.sucursales.forEach((suc, i) => {
+    const q = data.cantidades[i];
+    html += `
+      <tr>
+        <td>${suc}</td>
+        <td class="qty ${q > 0 ? 'ok' : 'bad'}">
+          ${q > 0 ? q + ' piezas' : 'Agotado'}
+        </td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  tableEl.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
