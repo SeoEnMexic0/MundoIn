@@ -1,23 +1,83 @@
+// Handler para Next.js / Vercel
 export default async function handler(req, res) {
+  // ======== CORS =========
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { store, version, token, product_id, value } = req.body;
+    const { product_id, handle, value } = req.body;
 
-    if (!store || !version || !token || !product_id || !value) {
-      return res.status(400).json({ ok: false, error: 'Faltan parámetros requeridos' });
+    // ======== CONFIG ========
+    const host = 'mundo-jm-test.myshopify.com'; // Cambiar a tu tienda real
+    const token = process.env.SHOPIFY_ADMIN_TOKEN; // token de admin
+    const version = '2024-07'; // API version
+
+    if (!token) return res.status(500).json({ ok: false, error: "Falta el TOKEN en Vercel" });
+
+    // Determinar el GID
+    const idFinal = product_id || null;
+    let gid = null;
+
+    if (idFinal) {
+      gid = `gid://shopify/Product/${idFinal}`;
+    } else if (handle) {
+      // Si solo hay handle, necesitamos buscar el producto primero
+      const queryByHandle = `
+        query getProduct($handle: String!) {
+          productByHandle(handle: $handle) {
+            id
+          }
+        }
+      `;
+      const respHandle = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': token
+        },
+        body: JSON.stringify({ query: queryByHandle, variables: { handle } })
+      });
+      const jsonHandle = await respHandle.json();
+      if (!jsonHandle.data?.productByHandle) return res.status(404).json({ ok: false, error: "No se encontró el producto por handle" });
+      gid = jsonHandle.data.productByHandle.id;
+    } else {
+      return res.status(400).json({ ok: false, error: "Falta product_id o handle" });
     }
 
-    const gid = `gid://shopify/Product/${product_id}`;
-    
-    const query = `
+    // ======== Obtener stock actual (solo para info) ========
+    const queryCurrent = `
+      query getMetafields($id: ID!) {
+        product(id: $id) {
+          metafields(namespace: "custom", keys: ["sucursales"]) {
+            key
+            value
+          }
+        }
+      }
+    `;
+    const currentResp = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': token
+      },
+      body: JSON.stringify({ query: queryCurrent, variables: { id: gid } })
+    });
+    const currentJson = await currentResp.json();
+    let currentValues = [];
+    try {
+      if(currentJson.data.product.metafields.length > 0){
+        currentValues = JSON.parse(currentJson.data.product.metafields[0].value);
+      }
+    } catch(e) { currentValues = []; }
+
+    // ======== Actualizar sucursales ========
+    const mutation = `
       mutation metafieldsSet($m: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $m) {
-          metafields { id namespace key value type }
+          metafields { id value }
           userErrors { field message }
         }
       }
@@ -33,31 +93,32 @@ export default async function handler(req, res) {
       }]
     };
 
-    const response = await fetch(`https://${store}/admin/api/${version}/graphql.json`, {
+    const updateResp = await fetch(`https://${host}/admin/api/${version}/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': token
       },
-      body: JSON.stringify({ query, variables })
+      body: JSON.stringify({ query: mutation, variables })
     });
 
-    const result = await response.json();
+    const updateJson = await updateResp.json();
 
-    if(result.errors || (result.data?.metafieldsSet?.userErrors?.length > 0)) {
+    if(updateJson.errors || updateJson.data.metafieldsSet.userErrors.length > 0) {
       return res.status(500).json({ 
         ok: false, 
-        error: 'Shopify rechazó la petición', 
-        details: result.errors || result.data.metafieldsSet.userErrors 
+        error: updateJson.errors || updateJson.data.metafieldsSet.userErrors 
       });
     }
 
-    return res.status(200).json({ 
-      ok: true, 
-      metafield: result.data.metafieldsSet.metafields[0] 
+    return res.status(200).json({
+      ok: true,
+      productId: gid,
+      currentStock: currentValues, // stock actual
+      updated: value
     });
 
-  } catch (err) {
+  } catch(err) {
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
