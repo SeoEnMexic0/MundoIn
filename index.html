@@ -2,105 +2,138 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Cama Luton – Stock por sucursal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cama Luton — Stock por Sucursal</title>
 <style>
-body { font-family: Arial, sans-serif; background: #f4f4f5; padding: 2rem; }
-h2 { text-align: center; }
-table { border-collapse: collapse; width: 100%; margin-top: 1rem; background: #fff; border-radius: 8px; overflow: hidden; }
-th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-input { width: 60px; text-align: center; }
-button { padding: 10px 20px; margin-top: 1rem; cursor: pointer; background: #22c55e; color: #fff; border: none; border-radius: 6px; }
-button:hover { background: #16a34a; }
-.success { color: green; margin-top: 1rem; }
-.error { color: red; margin-top: 1rem; }
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --primary: #22c55e;
+    --border: #334155;
+    --input-bg: #1e293b;
+  }
+
+  * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+  body { margin:0; background: var(--bg); color: var(--text); display:flex; justify-content:center; align-items:flex-start; min-height:100vh; padding:2rem; }
+  .container { width:100%; max-width:720px; }
+
+  h1 { font-size:2rem; margin-bottom:0.5rem; color: var(--primary); text-align:center; }
+  p.desc { text-align:center; color: var(--muted); margin-bottom:2rem; }
+
+  table { width:100%; border-collapse:collapse; background: var(--panel); border-radius:12px; overflow:hidden; box-shadow:0 10px 20px rgba(0,0,0,0.3); }
+  th, td { padding:10px; border-bottom:1px solid var(--border); text-align:center; }
+  th { background: #1f2937; color: var(--primary); }
+  td input { width:60px; padding:5px; border-radius:6px; border:none; text-align:center; background: var(--input-bg); color: var(--text); }
+
+  button {
+    display:block;
+    margin:1.5rem auto 0;
+    padding:12px 24px;
+    font-size:1rem;
+    font-weight:600;
+    border:none;
+    border-radius:12px;
+    background: linear-gradient(180deg, var(--primary), #16a34a);
+    color:#fff;
+    cursor:pointer;
+    transition:0.2s;
+  }
+  button:hover { filter:brightness(1.1); }
+  button:disabled { opacity:0.6; cursor:not-allowed; }
+
+  .note { margin-top:1rem; padding:10px 15px; border-left:4px solid var(--primary); background:#111827; color:var(--muted); border-radius:8px; font-size:0.9rem; }
 </style>
 </head>
 <body>
 
-<h2>Cama Luton – Individual / Gris</h2>
+<div class="container">
+  <h1>Cama Luton — Individual / Gris</h1>
+  <p class="desc">Consulta y actualiza el stock por sucursal en tiempo real</p>
 
-<table id="tabla">
-  <thead>
-    <tr>
-      <th>Sucursal</th>
-      <th>Stock actual</th>
-      <th>Nuevo</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+  <table id="tabla">
+    <thead>
+      <tr>
+        <th>Sucursal</th>
+        <th>Stock actual</th>
+        <th>Nuevo</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<button id="guardarBtn">Actualizar sucursales</button>
-<div id="mensaje"></div>
+  <button id="guardarBtn">Guardar cambios</button>
+  <div class="note">Solo se actualiza la "Cama Luton". Los cambios se reflejan al instante.</div>
+</div>
 
 <script>
 const HANDLE = 'cama-luton';
-const SUCURSALES = [
-  "WEB","Suc. Centro","Suc. Coyoacán","Suc. Benito Juárez",
-  "Suc. Gustavo Baz","Suc. Naucalpan","Suc. Toluca",
-  "Suc. Querétaro","Suc. Vallejo","Suc. Puebla"
-];
-
 const tbody = document.querySelector('#tabla tbody');
-const mensaje = document.getElementById('mensaje');
-const guardarBtn = document.getElementById('guardarBtn');
+const btn = document.getElementById('guardarBtn');
 
-// Función para precargar stock desde Shopify
 async function cargarStock() {
+  tbody.innerHTML = '<tr><td colspan="3">Cargando stock...</td></tr>';
+
   try {
     const res = await fetch('/api/metafield', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ handle: HANDLE })
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ handle: HANDLE, cambios:{} })
     });
     const data = await res.json();
-
-    if (!data.ok) throw new Error(data.error || 'No se pudo obtener stock');
+    if(!data.ok) throw new Error(data.error || 'Error al cargar stock');
 
     tbody.innerHTML = '';
-    SUCURSALES.forEach((suc, i) => {
-      const cantidad = data.sucursales.find(s => s.nombre === suc)?.cantidad || 0;
+    data.sucursales.forEach(s => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${suc}</td>
-        <td>${cantidad}</td>
-        <td><input data-suc="${suc}" value="${cantidad}"></td>
+        <td>${s.nombre}</td>
+        <td>${s.cantidad}</td>
+        <td><input type="number" data-suc="${s.nombre}" placeholder="=" min="0"></td>
       `;
       tbody.appendChild(tr);
     });
   } catch(e) {
-    mensaje.innerHTML = `<div class="error">Error al cargar stock: ${e.message}</div>`;
+    tbody.innerHTML = `<tr><td colspan="3">❌ Error: ${e.message}</td></tr>`;
   }
 }
 
-// Función para guardar cambios
-guardarBtn.addEventListener('click', async () => {
+async function guardar() {
   const cambios = {};
   document.querySelectorAll('input').forEach(input => {
-    const val = Number(input.value);
-    if (!isNaN(val)) cambios[input.dataset.suc] = val;
+    if(input.value !== '') cambios[input.dataset.suc] = Number(input.value);
   });
+
+  if(Object.keys(cambios).length === 0){
+    alert('No hay cambios para guardar.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
 
   try {
     const res = await fetch('/api/metafield', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ handle: HANDLE, cambios })
     });
-    const j = await res.json();
-    if (j.ok) {
-      mensaje.innerHTML = `<div class="success">✔ Metafield actualizado correctamente</div>`;
-      cargarStock(); // refrescar tabla
-    } else {
-      mensaje.innerHTML = `<div class="error">✗ Error: ${j.error}</div>`;
-    }
-  } catch(e) {
-    mensaje.innerHTML = `<div class="error">✗ Error: ${e.message}</div>`;
-  }
-});
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Error al guardar');
 
-// Cargar stock al inicio
-cargarStock();
+    alert('✔ Stock actualizado correctamente!');
+    cargarStock(); // refresca tabla en tiempo real
+  } catch(e) {
+    alert('✗ Error: '+e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+}
+
+btn.addEventListener('click', guardar);
+window.addEventListener('load', cargarStock);
 </script>
 
 </body>
