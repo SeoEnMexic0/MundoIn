@@ -1,266 +1,3 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editor de Stock — Mundo In</title>
-<script src="https://unpkg.com/@phosphor-icons/web"></script>
-<style>
-:root{
-  --brand:#184E56;
-  --brand-dark:#123a40;
-  --excel-green:#107c41;
-  --border:#d1d5db;
-  --header-bg:#f3f4f6;
-  --selection:#e7f3f0;
-}
-body{
-  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
-  margin:0;
-  background:#fff;
-  color:#333;
-  display:flex;
-  flex-direction:column;
-  height:100vh;
-  overflow:hidden;
-}
-/* NAV */
-nav{
-  background:var(--brand);
-  padding:10px 20px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  color:#fff;
-}
-.logo-area{display:flex;align-items:center;gap:15px}
-.search-excel{
-  background:rgba(255,255,255,.15);
-  border:1px solid rgba(255,255,255,.2);
-  border-radius:6px;
-  padding:8px 15px;
-  width:350px;
-  color:#fff;
-  outline:none;
-  transition:0.3s;
-}
-.search-excel:focus{background:#fff;color:#000;border-color:var(--excel-green)}
-/* TOOLBAR */
-.toolbar{
-  background:#fff;
-  padding:8px 20px;
-  border-bottom:1px solid var(--border);
-  display:flex;
-  align-items:center;
-  gap:15px;
-  font-size:13px;
-}
-.btn-tool{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  cursor:pointer;
-  padding:6px 10px;
-  border-radius:4px;
-  transition:0.2s;
-}
-.btn-tool:hover{background:#f3f4f6;color:var(--brand)}
-.btn-save-main{color:var(--excel-green)}
-.btn-add-product{color:#2563eb}
-/* GRID */
-.grid-container{
-  flex:1;
-  overflow:auto;
-  background:#f8fafc;
-}
-table{
-  border-collapse:collapse;
-  width:max-content;
-  min-width:100%;
-  background:#fff;
-}
-th{
-  background:var(--header-bg);
-  position:sticky;
-  top:0;
-  z-index:10;
-  padding:10px 15px;
-  border:1px solid var(--border);
-  font-size:11px;
-  font-weight:700;
-  text-transform:uppercase;
-  color:#4b5563;
-}
-th:nth-child(1),td:nth-child(1),
-th:nth-child(2),td:nth-child(2){
-  position:sticky;
-  left:0;
-  z-index:11;
-}
-td{
-  border:1px solid var(--border);
-  padding:0;
-}
-.cell-input{
-  width:100%;
-  height:38px;
-  border:2px solid transparent;
-  padding:0 10px;
-  background:transparent;
-  outline:none;
-  font-size:13px;
-}
-.cell-input:focus{
-  background:#fff;
-  border-color:var(--excel-green);
-}
-.stock-cell{
-  width:90px;
-  text-align:center;
-  font-weight:700;
-  color:var(--brand);
-}
-tr:hover td{background:var(--selection)}
-/* FOOTER */
-footer{
-  background:#f3f4f6;
-  border-top:1px solid var(--border);
-  padding:4px 20px;
-  display:flex;
-  justify-content:space-between;
-  font-size:11px;
-  color:#6b7280;
-}
-/* TOAST */
-.toast{
-  position:fixed;
-  bottom:30px;
-  right:30px;
-  background:#1f2937;
-  color:#fff;
-  padding:12px 20px;
-  border-radius:8px;
-  display:none;
-  align-items:center;
-  gap:10px;
-}
-/* MODAL NUEVO PRODUCTO */
-#modal-new{
-  display:none;
-  position:fixed;
-  top:0; left:0; right:0; bottom:0;
-  background:rgba(0,0,0,0.4);
-  justify-content:center;
-  align-items:center;
-  z-index:50;
-}
-.modal-content{
-  background:#fff;
-  padding:20px;
-  border-radius:10px;
-  width:400px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.modal-content input{
-  padding:8px;
-  border:1px solid #ccc;
-  border-radius:6px;
-  outline:none;
-}
-.modal-content button{
-  background:var(--excel-green);
-  color:#fff;
-  border:none;
-  padding:10px;
-  border-radius:6px;
-  cursor:pointer;
-  font-weight:600;
-}
-.modal-content button:hover{opacity:0.9}
-</style>
-</head>
-<body>
-
-<nav>
-  <div class="logo-area">
-    <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
-    <span style="opacity:.9;font-size:13px">CONTROL DE INVENTARIO</span>
-  </div>
-  <input id="search-box" class="search-excel" placeholder="🔍 Buscar SKU o producto">
-  <div>
-    <i class="ph ph-bell"></i>
-    <i class="ph ph-user-circle"></i>
-  </div>
-</nav>
-
-<div class="toolbar">
-  <div class="btn-tool btn-save-main" onclick="guardar()">
-    <i class="ph-fill ph-floppy-disk"></i> Guardar cambios
-  </div>
-  <div class="btn-tool btn-add-product" onclick="modalNew.style.display='flex'">
-    <i class="ph ph-plus-circle"></i> Nuevo producto
-  </div>
-  <div style="margin-left:auto;color:#059669;font-weight:600">
-    ● Conectado a Base de Datos
-  </div>
-</div>
-
-<div class="grid-container">
-<table>
-<thead>
-<tr>
-  <th>SKU</th>
-  <th>Producto</th>
-  <th>Variante</th>
-  <th class="stock-cell">Centro</th>
-  <th class="stock-cell">Coyoacán</th>
-  <th class="stock-cell">Benito J.</th>
-  <th class="stock-cell">Gustavo Baz</th>
-  <th class="stock-cell">Naucalpan</th>
-  <th class="stock-cell">Toluca</th>
-  <th class="stock-cell">Querétaro</th>
-  <th class="stock-cell">Vallejo</th>
-  <th class="stock-cell">Puebla</th>
-</tr>
-</thead>
-<tbody id="fila"></tbody>
-</table>
-</div>
-
-<footer>
-  <div>SKU: RECA0904851</div>
-  <div>Mundo In © 2024</div>
-</footer>
-
-<div id="toast" class="toast">
-  <i class="ph ph-check-circle" style="color:#22c55e"></i>
-  <span>Guardado</span>
-</div>
-
-<!-- MODAL NUEVO PRODUCTO -->
-<div id="modal-new">
-  <div class="modal-content">
-    <h3>Agregar nuevo producto</h3>
-    <input id="new-sku" placeholder="SKU">
-    <input id="new-name" placeholder="Nombre">
-    <input id="new-variante" placeholder="Variante">
-    <div style="display:flex;flex-wrap:wrap;gap:5px">
-      <input id="new-stock-centro" placeholder="Centro" class="stock-cell">
-      <input id="new-stock-coyoacan" placeholder="Coyoacán" class="stock-cell">
-      <input id="new-stock-benito" placeholder="Benito J." class="stock-cell">
-      <input id="new-stock-gustavo" placeholder="Gustavo Baz" class="stock-cell">
-      <input id="new-stock-naucalpan" placeholder="Naucalpan" class="stock-cell">
-      <input id="new-stock-toluca" placeholder="Toluca" class="stock-cell">
-      <input id="new-stock-queretaro" placeholder="Querétaro" class="stock-cell">
-      <input id="new-stock-vallejo" placeholder="Vallejo" class="stock-cell">
-      <input id="new-stock-puebla" placeholder="Puebla" class="stock-cell">
-    </div>
-    <button onclick="agregarProducto()">Agregar</button>
-  </div>
-</div>
-
 <script>
 const HANDLE='cama-luton';
 const SUCURSALES=[
@@ -269,21 +6,33 @@ const SUCURSALES=[
  'suc_queretaro','suc_vallejo','suc_puebla'
 ];
 
+// Carga todos los productos existentes
 async function cargar(){
   const res=await fetch(`/api/metafield?handle=${HANDLE}`);
   const j=await res.json();
 
-  const tr=document.createElement('tr');
-  tr.innerHTML=`
-    <td><input class="cell-input" value="RECA0904851" readonly></td>
-    <td><input class="cell-input" value="Cama Luton Gris" readonly></td>
-    <td><input class="cell-input" value="Individual" readonly></td>
-    ${SUCURSALES.map(k=>`
-      <td><input class="cell-input stock-cell" data-key="${k}" value="${j.stocks?.[k]||0}"></td>
-    `).join('')}
-  `;
-  fila.innerHTML='';
-  fila.appendChild(tr);
+  fila.innerHTML=''; // limpia pero vamos a agregar todo
+
+  // Si hay múltiples productos, iterar; si solo uno, usar ejemplo
+  const productos = j.productos || [{
+    sku:'RECA0904851',
+    nombre:'Cama Luton Gris',
+    variante:'Individual',
+    stocks:j.stocks
+  }];
+
+  productos.forEach(p=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><input class="cell-input" value="${p.sku}" readonly></td>
+      <td><input class="cell-input" value="${p.nombre}" readonly></td>
+      <td><input class="cell-input" value="${p.variante}" readonly></td>
+      ${SUCURSALES.map(k=>`
+        <td><input class="cell-input stock-cell" data-key="${k}" value="${p.stocks?.[k]||0}"></td>
+      `).join('')}
+    `;
+    fila.appendChild(tr);
+  });
 }
 
 // Guardar cambios
@@ -332,5 +81,3 @@ function agregarProducto(){
 
 window.onload=cargar;
 </script>
-</body>
-</html>
