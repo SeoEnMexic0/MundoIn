@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Admin Stock — Sistema Pro</title>
+
+<style>
+  :root {
+    --primary: #184E56;
+    --accent: #22c55e;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 900px;
+  }
+
+  /* --- HEADER & FILTROS --- */
+  .header-section {
+    background: var(--primary);
+    color: white;
+    padding: 30px;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  }
+
+  .header-section h1 { margin: 0; font-size: 1.5rem; }
+  
+  .search-box {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .search-box input {
+    flex-grow: 1;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+  }
+
+  /* --- TABLA DE SUCURSALES --- */
+  .content-card {
+    background: var(--card-bg);
+    padding: 24px;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  th {
+    text-align: left;
+    padding: 12px;
+    color: #64748b;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid #f1f5f9;
+  }
+
+  td {
+    padding: 16px 12px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .branch-name { font-weight: 600; color: var(--primary); }
+
+  .stock-badge {
+    background: #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: bold;
+  }
+
+  .input-new-stock {
+    width: 100px;
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    outline-color: var(--primary);
+  }
+
+  /* --- BOTONES --- */
+  .actions {
+    margin-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .btn-save {
+    background: var(--primary);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .btn-save:hover {
+    background: #123a40;
+    transform: translateY(-1px);
+  }
+
+  .btn-save:active { transform: translateY(0); }
+
+  .status-msg { margin-top: 15px; text-align: center; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header-section">
+    <h1>Gestión de Inventario</h1>
+    <div class="search-box">
+      <input type="text" placeholder="🔍 Buscar producto (ej. Cama Luton)..." id="productSearch">
+    </div>
+  </div>
+
+  <div class="content-card">
+    <div id="productInfo" style="margin-bottom: 20px;">
+        <strong style="color: var(--primary); font-size: 1.2rem;">Cama Luton — Individual / Gris</strong>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Sucursal</th>
+          <th>Stock Actual</th>
+          <th>Modificar Cantidad</th>
+        </tr>
+      </thead>
+      <tbody id="inventoryBody">
+        <tr>
+          <td class="branch-name">Benito Juárez</td>
+          <td><span class="stock-badge" id="stock-bj">12</span></td>
+          <td><input type="number" class="input-new-stock" placeholder="0"></td>
+        </tr>
+        <tr>
+          <td class="branch-name">Polanco</td>
+          <td><span class="stock-badge" id="stock-po">5</span></td>
+          <td><input type="number" class="input-new-stock" placeholder="0"></td>
+        </tr>
+        <tr>
+          <td class="branch-name">Santa Fe</td>
+          <td><span class="stock-badge" id="stock-sf">8</span></td>
+          <td><input type="number" class="input-new-stock" placeholder="0"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="actions">
+      <button class="btn-save" id="guardarTodo">Actualizar Inventario</button>
+    </div>
+    <div id="statusMsg" class="status-msg"></div>
+  </div>
+</div>
+
+<script>
+  // Aquí puedes agregar la lógica para que el buscador filtre productos
+  // y para que el botón "Actualizar" envíe un array con todos los cambios.
+  
+  document.getElementById('guardarTodo').addEventListener('click', function() {
+      const btn = this;
+      btn.textContent = 'Guardando cambios...';
+      btn.style.opacity = '0.7';
+      
+      // Simulación de guardado
+      setTimeout(() => {
+          btn.textContent = 'Actualizar Inventario';
+          btn.style.opacity = '1';
+          document.getElementById('statusMsg').innerHTML = '✅ Inventario actualizado correctamente en todas las sucursales.';
+          document.getElementById('statusMsg').style.color = '#15803d';
+      }, 1500);
+  });
+</script>
+
+</body>
+</html>
