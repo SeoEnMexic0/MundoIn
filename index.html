@@ -1,261 +1,253 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Cama Luton — Stock por sucursal</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor de Stock — Mundo In</title>
+
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
 
 <style>
 :root{
+  --brand:#184E56;
+  --brand-dark:#123a40;
   --excel-green:#107c41;
   --border:#d1d5db;
-  --header:#f3f4f6;
-  --row-hover:#e7f3f0;
-  --text:#1f2937;
+  --header-bg:#f3f4f6;
+  --selection:#e7f3f0;
 }
-
 body{
-  background:#f8fafc;
-  color:var(--text);
-  font-family:'Segoe UI', system-ui, sans-serif;
-  display:flex;
-  justify-content:center;
-  padding:40px 20px;
-}
-
-/* CONTENEDOR TIPO SHEET */
-.card{
-  width:100%;
-  max-width:760px;
-  background:#fff;
-  border-radius:12px;
-  box-shadow:0 10px 25px rgba(0,0,0,.08);
-  padding:24px;
-}
-
-/* TITULO */
-h1{
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
   margin:0;
-  text-align:center;
-  font-size:20px;
-  font-weight:700;
-  color:var(--excel-green);
+  background:#fff;
+  color:#333;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  overflow:hidden;
 }
 
-p{
-  text-align:center;
-  color:#6b7280;
-  margin:6px 0 20px;
+/* NAV */
+nav{
+  background:var(--brand);
+  padding:10px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#fff;
+}
+.logo-area{display:flex;align-items:center;gap:15px}
+.search-excel{
+  background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:6px;
+  padding:8px 15px;
+  width:350px;
+  color:#fff;
+  outline:none;
+}
+
+/* TOOLBAR */
+.toolbar{
+  background:#fff;
+  padding:8px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:25px;
   font-size:13px;
 }
+.btn-tool{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+  padding:6px 10px;
+  border-radius:4px;
+}
+.btn-tool:hover{background:#f3f4f6;color:var(--brand)}
+.btn-save-main{color:var(--excel-green)}
 
-/* TABLA EXCEL */
+/* GRID */
+.grid-container{
+  flex:1;
+  overflow:auto;
+  background:#f8fafc;
+}
 table{
-  width:100%;
   border-collapse:collapse;
+  width:max-content;
+  min-width:100%;
   background:#fff;
 }
-
 th{
-  background:var(--header);
+  background:var(--header-bg);
+  position:sticky;
+  top:0;
+  z-index:10;
+  padding:10px 15px;
   border:1px solid var(--border);
-  padding:10px;
   font-size:11px;
+  font-weight:700;
   text-transform:uppercase;
-  letter-spacing:.4px;
   color:#4b5563;
 }
-
+th:nth-child(1),td:nth-child(1),
+th:nth-child(2),td:nth-child(2){
+  position:sticky;
+  left:0;
+  z-index:11;
+}
 td{
   border:1px solid var(--border);
   padding:0;
-  text-align:center;
-  height:42px;
 }
-
-tbody tr:hover td{
-  background:var(--row-hover);
-}
-
-/* CELDAS */
-.cell{
+.cell-input{
   width:100%;
-  height:100%;
-  border:none;
-  outline:none;
+  height:38px;
+  border:2px solid transparent;
+  padding:0 10px;
   background:transparent;
-  text-align:center;
-  font-size:14px;
-  font-weight:600;
-  color:var(--excel-green);
-}
-
-.cell:focus{
-  background:#fff;
-  border:2px solid var(--excel-green);
-  box-shadow:inset 0 0 4px rgba(16,124,65,.2);
-}
-
-/* TEXTO */
-.sucursal{
-  font-weight:600;
-  color:#374151;
-}
-
-.stock-actual{
-  font-weight:700;
-  color:#111827;
-}
-
-/* BOTON */
-button{
-  margin-top:18px;
-  width:100%;
-  padding:14px;
-  border:none;
-  border-radius:10px;
-  background:var(--excel-green);
-  color:white;
-  font-weight:700;
-  font-size:15px;
-  cursor:pointer;
-}
-
-button:disabled{
-  opacity:.6;
-  cursor:not-allowed;
-}
-
-/* ERROR */
-.error{
-  text-align:center;
-  color:#dc2626;
-  margin-top:10px;
+  outline:none;
   font-size:13px;
+}
+.cell-input:focus{
+  background:#fff;
+  border-color:var(--excel-green);
+}
+.stock-cell{
+  width:90px;
+  text-align:center;
+  font-weight:700;
+  color:var(--brand);
+}
+tr:hover td{background:var(--selection)}
+
+/* FOOTER */
+footer{
+  background:#f3f4f6;
+  border-top:1px solid var(--border);
+  padding:4px 20px;
+  display:flex;
+  justify-content:space-between;
+  font-size:11px;
+  color:#6b7280;
+}
+
+/* TOAST */
+.toast{
+  position:fixed;
+  bottom:30px;
+  right:30px;
+  background:#1f2937;
+  color:#fff;
+  padding:12px 20px;
+  border-radius:8px;
+  display:none;
+  align-items:center;
+  gap:10px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
-  <h1>Cama Luton — Individual / Gris</h1>
-  <p>Consulta y actualiza el stock por sucursal</p>
+<nav>
+  <div class="logo-area">
+    <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
+    <span style="opacity:.9;font-size:13px">CONTROL DE INVENTARIO</span>
+  </div>
+  <input class="search-excel" placeholder="🔍 Buscar SKU o producto">
+  <div>
+    <i class="ph ph-bell"></i>
+    <i class="ph ph-user-circle"></i>
+  </div>
+</nav>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Sucursal</th>
-        <th>Stock actual</th>
-        <th>Nuevo</th>
-      </tr>
-    </thead>
-    <tbody id="tabla-stock"></tbody>
-  </table>
+<div class="toolbar">
+  <div class="btn-tool btn-save-main" onclick="guardar()">
+    <i class="ph-fill ph-floppy-disk"></i> Guardar cambios
+  </div>
+  <div style="margin-left:auto;color:#059669;font-weight:600">
+    ● Conectado a Base de Datos
+  </div>
+</div>
 
-  <button id="guardar">Guardar cambios</button>
-  <div id="error" class="error"></div>
+<div class="grid-container">
+<table>
+<thead>
+<tr>
+  <th>SKU</th>
+  <th>Producto</th>
+  <th>Variante</th>
+  <th class="stock-cell">Centro</th>
+  <th class="stock-cell">Coyoacán</th>
+  <th class="stock-cell">Benito J.</th>
+  <th class="stock-cell">Gustavo Baz</th>
+  <th class="stock-cell">Naucalpan</th>
+  <th class="stock-cell">Toluca</th>
+  <th class="stock-cell">Querétaro</th>
+  <th class="stock-cell">Vallejo</th>
+  <th class="stock-cell">Puebla</th>
+</tr>
+</thead>
+<tbody id="fila"></tbody>
+</table>
+</div>
+
+<footer>
+  <div>SKU: RECA0904851</div>
+  <div>Mundo In © 2024</div>
+</footer>
+
+<div id="toast" class="toast">
+  <i class="ph ph-check-circle" style="color:#22c55e"></i>
+  <span>Guardado</span>
 </div>
 
 <script>
-const HANDLE = 'cama-luton';
+const HANDLE='cama-luton';
 
-const SUCURSALES = [
-  { label:'Centro', key:'stock_centro' },
-  { label:'Coyoacán', key:'suc_coyoacan' },
-  { label:'Benito Juárez', key:'suc_benito_juarez' },
-  { label:'Gustavo Baz', key:'suc_gustavo_baz' },
-  { label:'Naucalpan', key:'suc_naucalpan' },
-  { label:'Toluca', key:'suc_toluca' },
-  { label:'Querétaro', key:'suc_queretaro' },
-  { label:'Vallejo', key:'suc_vallejo' },
-  { label:'Puebla', key:'suc_puebla' }
+const SUCURSALES=[
+ 'stock_centro','suc_coyoacan','suc_benito_juarez',
+ 'suc_gustavo_baz','suc_naucalpan','suc_toluca',
+ 'suc_queretaro','suc_vallejo','suc_puebla'
 ];
 
-const tbody = document.getElementById('tabla-stock');
-const btn = document.getElementById('guardar');
-const errorEl = document.getElementById('error');
+async function cargar(){
+  const res=await fetch(`/api/metafield?handle=${HANDLE}`);
+  const j=await res.json();
 
-function renderTabla(stocks){
-  tbody.innerHTML = '';
-  SUCURSALES.forEach(s => {
-    const actual = stocks[s.key] ?? 0;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="sucursal">${s.label}</td>
-      <td class="stock-actual">${actual}</td>
-      <td>
-        <input 
-          type="number"
-          min="0"
-          class="cell"
-          data-key="${s.key}"
-          placeholder="—"
-        >
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><input class="cell-input" value="RECA0904851" readonly></td>
+    <td><input class="cell-input" value="Cama Luton Gris" readonly></td>
+    <td><input class="cell-input" value="Individual" readonly></td>
+    ${SUCURSALES.map(k=>`
+      <td><input class="cell-input stock-cell" data-key="${k}" value="${j.stocks?.[k]||0}"></td>
+    `).join('')}
+  `;
+  fila.innerHTML='';
+  fila.appendChild(tr);
 }
 
-// CARGAR STOCK
-async function cargarStock(){
-  errorEl.textContent = '';
-  tbody.innerHTML = `<tr><td colspan="3">Cargando…</td></tr>`;
-
-  try{
-    const res = await fetch(`/api/metafield?handle=${HANDLE}`);
-    const json = await res.json();
-    if(!json.ok) throw new Error(json.error);
-    renderTabla(json.stocks);
-  }catch(e){
-    tbody.innerHTML = '';
-    errorEl.textContent = '❌ ' + e.message;
-  }
-}
-
-// GUARDAR
-async function guardarStock(){
-  errorEl.textContent = '';
-  const inputs = tbody.querySelectorAll('input[data-key]');
-  const stocks = {};
-
-  inputs.forEach(i=>{
-    if(i.value !== ''){
-      stocks[i.dataset.key] = Number(i.value);
-    }
+async function guardar(){
+  const data={};
+  document.querySelectorAll('[data-key]').forEach(i=>{
+    data[i.dataset.key]=Number(i.value);
   });
 
-  if(!Object.keys(stocks).length){
-    errorEl.textContent = 'No hay cambios para guardar';
-    return;
-  }
+  await fetch('/api/metafield',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({handle:HANDLE,stocks:data})
+  });
 
-  btn.disabled = true;
-  btn.textContent = 'Guardando…';
-
-  try{
-    const res = await fetch('/api/metafield',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ handle:HANDLE, stocks })
-    });
-
-    const json = await res.json();
-    if(!json.ok) throw new Error(json.error);
-
-    await cargarStock();
-    inputs.forEach(i=>i.value='');
-  }catch(e){
-    errorEl.textContent = '❌ ' + e.message;
-  }finally{
-    btn.disabled = false;
-    btn.textContent = 'Guardar cambios';
-  }
+  toast.style.display='flex';
+  setTimeout(()=>toast.style.display='none',2000);
 }
 
-btn.addEventListener('click', guardarStock);
-window.addEventListener('load', cargarStock);
+window.onload=cargar;
 </script>
 
 </body>
