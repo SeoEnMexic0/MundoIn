@@ -71,42 +71,34 @@
 const HANDLE = 'cama-luton';
 const tbody = document.querySelector('#tabla tbody');
 const btn = document.getElementById('guardarBtn');
+const SUCURSAL = 'Benito Juárez';
 
 async function cargarStock() {
   tbody.innerHTML = '<tr><td colspan="3">Cargando stock...</td></tr>';
 
   try {
-    const res = await fetch('/api/metafield', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ handle: HANDLE, cambios:{} })
-    });
+    const res = await fetch(`/api/metafield?handle=${HANDLE}`);
     const data = await res.json();
     if(!data.ok) throw new Error(data.error || 'Error al cargar stock');
 
-    tbody.innerHTML = '';
-    data.sucursales.forEach(s => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${s.nombre}</td>
-        <td>${s.cantidad}</td>
-        <td><input type="number" data-suc="${s.nombre}" placeholder="=" min="0"></td>
-      `;
-      tbody.appendChild(tr);
-    });
+    tbody.innerHTML = `
+      <tr>
+        <td>${SUCURSAL}</td>
+        <td>${data.stock}</td>
+        <td><input type="number" data-suc="${SUCURSAL}" placeholder="=" min="0"></td>
+      </tr>
+    `;
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="3">❌ Error: ${e.message}</td></tr>`;
   }
 }
 
 async function guardar() {
-  const cambios = {};
-  document.querySelectorAll('input').forEach(input => {
-    if(input.value !== '') cambios[input.dataset.suc] = Number(input.value);
-  });
+  const input = document.querySelector(`input[data-suc="${SUCURSAL}"]`);
+  const cantidad = Number(input.value || 0);
 
-  if(Object.keys(cambios).length === 0){
-    alert('No hay cambios para guardar.');
+  if(input.value === ''){
+    alert('No hay cantidad para guardar.');
     return;
   }
 
@@ -117,13 +109,18 @@ async function guardar() {
     const res = await fetch('/api/metafield', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ handle: HANDLE, cambios })
+      body: JSON.stringify({
+        handle: HANDLE,
+        cantidad: cantidad
+      })
     });
+
     const data = await res.json();
     if(!data.ok) throw new Error(data.error || 'Error al guardar');
 
     alert('✔ Stock actualizado correctamente!');
     cargarStock(); // refresca tabla en tiempo real
+    input.value = '';
   } catch(e) {
     alert('✗ Error: '+e.message);
   } finally {
