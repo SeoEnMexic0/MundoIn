@@ -3,55 +3,56 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Cama Luton — Stock</title>
+<title>Cama Luton — Stock por sucursal</title>
 
 <style>
-  body {
+  body{
     background:#0f172a;
     color:#e5e7eb;
-    font-family: system-ui, sans-serif;
+    font-family:system-ui,sans-serif;
     display:flex;
     justify-content:center;
     padding:40px;
   }
-  .card {
+  .card{
     width:100%;
-    max-width:500px;
+    max-width:720px;
     background:#1e293b;
     border-radius:14px;
     padding:24px;
     box-shadow:0 10px 30px rgba(0,0,0,.4);
   }
-  h1 {
+  h1{
     margin:0 0 6px;
     color:#22c55e;
     text-align:center;
   }
-  p {
+  p{
     text-align:center;
     color:#9ca3af;
     margin-bottom:24px;
   }
-  table {
+  table{
     width:100%;
     border-collapse:collapse;
   }
-  th, td {
+  th,td{
     padding:12px;
     text-align:center;
     border-bottom:1px solid #334155;
   }
-  th {
+  th{
     color:#22c55e;
+    font-weight:600;
   }
-  input {
+  input{
     width:80px;
     padding:6px;
     border-radius:6px;
     border:none;
     text-align:center;
   }
-  button {
+  button{
     margin-top:20px;
     width:100%;
     padding:14px;
@@ -62,10 +63,8 @@
     font-size:16px;
     cursor:pointer;
   }
-  button:disabled {
-    opacity:.6;
-  }
-  .error {
+  button:disabled{opacity:.6}
+  .error{
     text-align:center;
     color:#f87171;
     margin-top:12px;
@@ -87,15 +86,7 @@
         <th>Nuevo</th>
       </tr>
     </thead>
-    <tbody>
-      <tr>
-        <td>Benito Juárez</td>
-        <td id="stockActual">—</td>
-        <td>
-          <input id="nuevoStock" type="number" min="0" />
-        </td>
-      </tr>
-    </tbody>
+    <tbody id="tabla-stock"></tbody>
   </table>
 
   <button id="guardar">Guardar cambios</button>
@@ -104,64 +95,98 @@
 
 <script>
 const HANDLE = 'cama-luton';
-const stockEl = document.getElementById('stockActual');
-const inputEl = document.getElementById('nuevoStock');
+
+const SUCURSALES = [
+  { label:'Centro', key:'stock_centro' },
+  { label:'Coyoacán', key:'suc_coyoacan' },
+  { label:'Benito Juárez', key:'suc_benito_juarez' },
+  { label:'Gustavo Baz', key:'suc_gustavo_baz' },
+  { label:'Naucalpan', key:'suc_naucalpan' },
+  { label:'Toluca', key:'suc_toluca' },
+  { label:'Querétaro', key:'suc_queretaro' },
+  { label:'Vallejo', key:'suc_vallejo' },
+  { label:'Puebla', key:'suc_puebla' }
+];
+
+const tbody = document.getElementById('tabla-stock');
 const btn = document.getElementById('guardar');
 const errorEl = document.getElementById('error');
+
+function renderTabla(stocks){
+  tbody.innerHTML = '';
+  SUCURSALES.forEach(s => {
+    const actual = stocks[s.key] ?? 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.label}</td>
+      <td id="actual-${s.key}">${actual}</td>
+      <td>
+        <input type="number" min="0" data-key="${s.key}" placeholder="—">
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
 // -----------------------------
 // CARGAR STOCK
 // -----------------------------
 async function cargarStock(){
   errorEl.textContent = '';
-  stockEl.textContent = '...';
+  tbody.innerHTML = `<tr><td colspan="3">Cargando…</td></tr>`;
 
-  try {
+  try{
     const res = await fetch(`/api/metafield?handle=${HANDLE}`);
     const json = await res.json();
-
     if(!json.ok) throw new Error(json.error);
 
-    stockEl.textContent = json.stock;
-  } catch(e) {
-    stockEl.textContent = '—';
+    renderTabla(json.stocks);
+  }catch(e){
+    tbody.innerHTML = '';
     errorEl.textContent = '❌ ' + e.message;
   }
 }
 
 // -----------------------------
-// GUARDAR STOCK
+// GUARDAR STOCKS
 // -----------------------------
 async function guardarStock(){
   errorEl.textContent = '';
-  const cantidad = Number(inputEl.value);
+  const inputs = tbody.querySelectorAll('input[data-key]');
+  const stocks = {};
 
-  if (isNaN(cantidad)) {
-    errorEl.textContent = 'Ingresa una cantidad válida';
+  inputs.forEach(i => {
+    if(i.value !== ''){
+      stocks[i.dataset.key] = Number(i.value);
+    }
+  });
+
+  if(!Object.keys(stocks).length){
+    errorEl.textContent = 'No hay cambios para guardar';
     return;
   }
 
   btn.disabled = true;
   btn.textContent = 'Guardando…';
 
-  try {
+  try{
     const res = await fetch('/api/metafield', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({
         handle: HANDLE,
-        cantidad: cantidad
+        stocks
       })
     });
 
     const json = await res.json();
     if(!json.ok) throw new Error(json.error);
 
-    stockEl.textContent = json.stock;
-    inputEl.value = '';
-  } catch(e) {
+    await cargarStock();
+    inputs.forEach(i => i.value = '');
+  }catch(e){
     errorEl.textContent = '❌ ' + e.message;
-  } finally {
+  }finally{
     btn.disabled = false;
     btn.textContent = 'Guardar cambios';
   }
