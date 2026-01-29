@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Stock — Mundo In</title>
-
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
 <style>
 :root{
   --brand:#184E56;
@@ -26,7 +24,6 @@ body{
   height:100vh;
   overflow:hidden;
 }
-
 /* NAV */
 nav{
   background:var(--brand);
@@ -45,8 +42,9 @@ nav{
   width:350px;
   color:#fff;
   outline:none;
+  transition:0.3s;
 }
-
+.search-excel:focus{background:#fff;color:#000;border-color:var(--excel-green)}
 /* TOOLBAR */
 .toolbar{
   background:#fff;
@@ -54,7 +52,7 @@ nav{
   border-bottom:1px solid var(--border);
   display:flex;
   align-items:center;
-  gap:25px;
+  gap:15px;
   font-size:13px;
 }
 .btn-tool{
@@ -64,10 +62,11 @@ nav{
   cursor:pointer;
   padding:6px 10px;
   border-radius:4px;
+  transition:0.2s;
 }
 .btn-tool:hover{background:#f3f4f6;color:var(--brand)}
 .btn-save-main{color:var(--excel-green)}
-
+.btn-add-product{color:#2563eb}
 /* GRID */
 .grid-container{
   flex:1;
@@ -122,7 +121,6 @@ td{
   color:var(--brand);
 }
 tr:hover td{background:var(--selection)}
-
 /* FOOTER */
 footer{
   background:#f3f4f6;
@@ -133,7 +131,6 @@ footer{
   font-size:11px;
   color:#6b7280;
 }
-
 /* TOAST */
 .toast{
   position:fixed;
@@ -147,9 +144,43 @@ footer{
   align-items:center;
   gap:10px;
 }
+/* MODAL NUEVO PRODUCTO */
+#modal-new{
+  display:none;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.4);
+  justify-content:center;
+  align-items:center;
+  z-index:50;
+}
+.modal-content{
+  background:#fff;
+  padding:20px;
+  border-radius:10px;
+  width:400px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.modal-content input{
+  padding:8px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  outline:none;
+}
+.modal-content button{
+  background:var(--excel-green);
+  color:#fff;
+  border:none;
+  padding:10px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+}
+.modal-content button:hover{opacity:0.9}
 </style>
 </head>
-
 <body>
 
 <nav>
@@ -157,7 +188,7 @@ footer{
     <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
     <span style="opacity:.9;font-size:13px">CONTROL DE INVENTARIO</span>
   </div>
-  <input class="search-excel" placeholder="🔍 Buscar SKU o producto">
+  <input id="search-box" class="search-excel" placeholder="🔍 Buscar SKU o producto">
   <div>
     <i class="ph ph-bell"></i>
     <i class="ph ph-user-circle"></i>
@@ -167,6 +198,9 @@ footer{
 <div class="toolbar">
   <div class="btn-tool btn-save-main" onclick="guardar()">
     <i class="ph-fill ph-floppy-disk"></i> Guardar cambios
+  </div>
+  <div class="btn-tool btn-add-product" onclick="modalNew.style.display='flex'">
+    <i class="ph ph-plus-circle"></i> Nuevo producto
   </div>
   <div style="margin-left:auto;color:#059669;font-weight:600">
     ● Conectado a Base de Datos
@@ -205,9 +239,30 @@ footer{
   <span>Guardado</span>
 </div>
 
+<!-- MODAL NUEVO PRODUCTO -->
+<div id="modal-new">
+  <div class="modal-content">
+    <h3>Agregar nuevo producto</h3>
+    <input id="new-sku" placeholder="SKU">
+    <input id="new-name" placeholder="Nombre">
+    <input id="new-variante" placeholder="Variante">
+    <div style="display:flex;flex-wrap:wrap;gap:5px">
+      <input id="new-stock-centro" placeholder="Centro" class="stock-cell">
+      <input id="new-stock-coyoacan" placeholder="Coyoacán" class="stock-cell">
+      <input id="new-stock-benito" placeholder="Benito J." class="stock-cell">
+      <input id="new-stock-gustavo" placeholder="Gustavo Baz" class="stock-cell">
+      <input id="new-stock-naucalpan" placeholder="Naucalpan" class="stock-cell">
+      <input id="new-stock-toluca" placeholder="Toluca" class="stock-cell">
+      <input id="new-stock-queretaro" placeholder="Querétaro" class="stock-cell">
+      <input id="new-stock-vallejo" placeholder="Vallejo" class="stock-cell">
+      <input id="new-stock-puebla" placeholder="Puebla" class="stock-cell">
+    </div>
+    <button onclick="agregarProducto()">Agregar</button>
+  </div>
+</div>
+
 <script>
 const HANDLE='cama-luton';
-
 const SUCURSALES=[
  'stock_centro','suc_coyoacan','suc_benito_juarez',
  'suc_gustavo_baz','suc_naucalpan','suc_toluca',
@@ -231,6 +286,7 @@ async function cargar(){
   fila.appendChild(tr);
 }
 
+// Guardar cambios
 async function guardar(){
   const data={};
   document.querySelectorAll('[data-key]').forEach(i=>{
@@ -247,8 +303,34 @@ async function guardar(){
   setTimeout(()=>toast.style.display='none',2000);
 }
 
+// Filtro de búsqueda
+searchBox.addEventListener('input',()=> {
+  const term = searchBox.value.toLowerCase();
+  document.querySelectorAll('#fila tr').forEach(tr=>{
+    const sku = tr.children[0].querySelector('input').value.toLowerCase();
+    const name = tr.children[1].querySelector('input').value.toLowerCase();
+    tr.style.display = sku.includes(term) || name.includes(term) ? '' : 'none';
+  });
+});
+
+// Agregar nuevo producto
+function agregarProducto(){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><input class="cell-input" value="${newSku.value}" readonly></td>
+    <td><input class="cell-input" value="${newName.value}" readonly></td>
+    <td><input class="cell-input" value="${newVariante.value}" readonly></td>
+    ${SUCURSALES.map(k=>{
+      const val = document.getElementById('new-stock-' + k.split('_')[1])?.value || 0;
+      return `<td><input class="cell-input stock-cell" data-key="${k}" value="${val}"></td>`;
+    }).join('')}
+  `;
+  fila.appendChild(tr);
+  modalNew.style.display='none';
+  [newSku,newName,newVariante,...document.querySelectorAll('#modal-new input')].forEach(i=>i.value='');
+}
+
 window.onload=cargar;
 </script>
-
 </body>
 </html>
