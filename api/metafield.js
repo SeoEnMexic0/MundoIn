@@ -11,59 +11,34 @@ export default async function handler(req, res) {
   const VERSION = '2024-07';
 
   try {
-    const { handle, sku, cantidad } = req.method === 'POST' ? req.body : req.query;
+    const { handle, cantidad } = req.method === 'POST' ? req.body : req.query;
 
-    if (!handle && !sku) return res.status(400).json({ ok:false, error:'Falta handle o sku' });
+    if (!handle) return res.status(400).json({ ok:false, error:'Falta handle' });
 
     // -----------------------------
-    // Buscar producto por handle o SKU
+    // Buscar producto por handle
     // -----------------------------
-    let query = '';
-    let variables = {};
-
-    if(handle){
-      query = `
-        query($handle: String!) {
-          productByHandle(handle: $handle) {
-            id
-            variants(first:1) { edges { node { id sku } } }
-            metafield(namespace:"custom", key:"stock_por_sucursal"){ value type }
-          }
-        }
-      `;
-      variables = { handle };
-    } else if(sku){
-      query = `
-        query($sku: String!) {
-          products(first:1, query: $sku) {
-            edges {
-              node {
-                id
-                handle
-                variants(first:1) { edges { node { id sku } } }
-                metafield(namespace:"custom", key:"stock_por_sucursal"){ value type }
-              }
-            }
-          }
-        }
-      `;
-      variables = { sku };
-    }
-
     const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'X-Shopify-Access-Token':TOKEN
       },
-      body: JSON.stringify({ query, variables })
+      body: JSON.stringify({
+        query: `
+          query($handle: String!) {
+            productByHandle(handle: $handle) {
+              id
+              metafield(namespace:"custom", key:"stock_por_sucursal"){ value type }
+            }
+          }
+        `,
+        variables: { handle }
+      })
     });
 
     const productJson = await productRes.json();
-    let product = handle 
-      ? productJson?.data?.productByHandle 
-      : productJson?.data?.products?.edges?.[0]?.node;
-
+    const product = productJson?.data?.productByHandle;
     if(!product) return res.status(404).json({ ok:false, error:'Producto no encontrado' });
 
     // -----------------------------
@@ -71,7 +46,7 @@ export default async function handler(req, res) {
     // -----------------------------
     if(req.method === 'GET'){
       const stock = Number(product.metafield?.value || 0);
-      return res.json({ ok:true, stock, handle: product.handle, sku: product.variants.edges[0].node.sku });
+      return res.json({ ok:true, stock });
     }
 
     // -----------------------------
@@ -111,7 +86,7 @@ export default async function handler(req, res) {
       const errors = saveJson?.data?.metafieldsSet?.userErrors;
       if(errors?.length) return res.status(400).json({ ok:false, error: errors[0].message });
 
-      return res.json({ ok:true, stock: cantidad, handle: product.handle, sku: product.variants.edges[0].node.sku });
+      return res.json({ ok:true, stock: cantidad });
     }
 
     // -----------------------------
