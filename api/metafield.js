@@ -11,8 +11,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { handle, cantidad } = req.method === 'POST' ? req.body : req.query;
-
+    const { handle } = req.method === 'POST' ? req.body : req.query;
     if (!handle) return res.status(400).json({ ok:false, error:'Falta handle' });
 
     // -----------------------------
@@ -40,10 +39,28 @@ export default async function handler(req, res) {
     const productId = productJson?.data?.productByHandle?.id;
     if (!productId) return res.status(404).json({ ok:false, error:'Producto no encontrado' });
 
-    // -----------------------------
-    // GET: devolver stock actual
-    // -----------------------------
+    // =====================================================
+    // GET → LEER TODOS LOS METAFIELDS DE SUCURSALES
+    // =====================================================
     if (req.method === 'GET') {
+      const keys = [
+        'stock_centro',
+        'suc_coyoacan',
+        'suc_benito_juarez',
+        'suc_gustavo_baz',
+        'suc_naucalpan',
+        'suc_toluca',
+        'suc_queretaro',
+        'suc_vallejo',
+        'suc_puebla'
+      ];
+
+      const queries = keys.map(
+        k => `
+          ${k}: metafield(namespace:"custom", key:"${k}"){ value }
+        `
+      ).join('\n');
+
       const stockRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method:'POST',
         headers:{
@@ -54,27 +71,41 @@ export default async function handler(req, res) {
           query: `
             query($id:ID!){
               product(id:$id){
-                metafield(namespace:"custom", key:"stock_por_sucursal"){
-                  value
-                  type
-                }
+                ${queries}
               }
             }
           `,
-          variables: { id: productId }
+          variables:{ id: productId }
         })
       });
 
       const stockJson = await stockRes.json();
-      const value = stockJson?.data?.product?.metafield?.value ?? 0;
-      return res.json({ ok:true, stock: Number(value) });
+      const product = stockJson?.data?.product || {};
+
+      const result = {};
+      keys.forEach(k => {
+        result[k] = Number(product[k]?.value || 0);
+      });
+
+      return res.json({ ok:true, stocks: result });
     }
 
-    // -----------------------------
-    // POST: actualizar stock
-    // -----------------------------
+    // =====================================================
+    // POST → GUARDAR VARIOS METAFIELDS
+    // =====================================================
     if (req.method === 'POST') {
-      if (cantidad == null) return res.status(400).json({ ok:false, error:'Falta cantidad' });
+      const { stocks } = req.body;
+      if (!stocks || typeof stocks !== 'object') {
+        return res.status(400).json({ ok:false, error:'Faltan stocks' });
+      }
+
+      const metafields = Object.entries(stocks).map(([key, value]) => ({
+        ownerId: productId,
+        namespace: 'custom',
+        key,
+        type: 'number_integer',
+        value: String(value ?? 0)
+      }));
 
       const saveRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method:'POST',
@@ -86,33 +117,27 @@ export default async function handler(req, res) {
           query: `
             mutation($mf:[MetafieldsSetInput!]!){
               metafieldsSet(metafields:$mf){
-                metafields{id value type}
-                userErrors{field,message}
+                metafields{ key value }
+                userErrors{ field message }
               }
             }
           `,
-          variables:{
-            mf:[{
-              ownerId: productId,
-              namespace: 'custom',
-              key: 'stock_por_sucursal',
-              type: 'number_integer',
-              value: String(cantidad)
-            }]
-          }
+          variables:{ mf: metafields }
         })
       });
 
       const saveJson = await saveRes.json();
       const errors = saveJson?.data?.metafieldsSet?.userErrors;
-      if(errors?.length) return res.status(400).json({ ok:false, error: errors[0].message });
+      if (errors?.length) {
+        return res.status(400).json({ ok:false, error: errors[0].message });
+      }
 
-      return res.json({ ok:true, stock: cantidad });
+      return res.json({ ok:true, saved: stocks });
     }
 
     return res.status(405).json({ ok:false, error:'Método no permitido' });
 
-  } catch(err) {
+  } catch (err) {
     console.error('Error /api/metafield:', err);
     return res.status(500).json({ ok:false, error: err.message });
   }
