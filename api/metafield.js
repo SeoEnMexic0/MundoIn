@@ -1,15 +1,13 @@
 export default async function handler(req, res) {
-  // 🔹 Permitir CORS desde Shopify
-  res.setHeader('Access-Control-Allow-Origin', 'https://mundoin.mx');
+  // Permitir solicitudes desde cualquier origen (puedes poner tu dominio específico para más seguridad)
+  res.setHeader('Access-Control-Allow-Origin', 'https://mundoin.mx'); 
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // 🔹 Responder a preflight request
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // Responder OPTIONS para preflight
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method !== 'POST') 
+  if (req.method !== 'POST')
     return res.status(405).json({ ok:false, error:'Método no permitido' });
 
   try {
@@ -21,7 +19,7 @@ export default async function handler(req, res) {
     const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
     const VERSION = '2024-07';
 
-    // 🔹 Leer producto por handle
+    // --- Leer producto por handle ---
     const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
       method: 'POST',
       headers: {
@@ -46,21 +44,18 @@ export default async function handler(req, res) {
     if (!product) 
       return res.status(404).json({ ok:false, error:'Producto no encontrado' });
 
-    // 🔹 Parse seguro del JSON
     let data;
     try {
       data = JSON.parse(product.metafield.value);
     } catch {
-      data = { sucursales: [] }; // Inicia vacío si estaba corrupto
+      data = { sucursales: [] };
     }
 
-    // 🔹 Actualizar solo sucursales que cambian
     Object.entries(cambios).forEach(([sucursal, cantidad]) => {
       const idx = data.sucursales.findIndex(s => s.nombre === sucursal);
       if (idx !== -1) data.sucursales[idx].cantidad = Number(cantidad);
     });
 
-    // 🔹 Guardar metafield en Shopify
     const saveRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
       method: 'POST',
       headers: {
@@ -93,7 +88,6 @@ export default async function handler(req, res) {
     if (errors?.length) 
       return res.status(400).json({ ok:false, error: errors[0].message });
 
-    // 🔹 Devolver stock actualizado
     return res.json({ ok:true, sucursales: data.sucursales });
 
   } catch(err) {
