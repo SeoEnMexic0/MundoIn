@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { handle, cantidad } = req.body || {};
+    const { handle, cantidad } = req.method === 'POST' ? req.body : req.query;
 
     if (!handle) return res.status(400).json({ ok:false, error:'Falta handle' });
 
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     if (!productId) return res.status(404).json({ ok:false, error:'Producto no encontrado' });
 
     // -----------------------------
-    // Si es GET → devolver stock actual
+    // GET: devolver stock actual
     // -----------------------------
     if (req.method === 'GET') {
       const stockRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     }
 
     // -----------------------------
-    // Si es POST → actualizar stock
+    // POST: actualizar stock
     // -----------------------------
     if (req.method === 'POST') {
       if (cantidad == null) return res.status(400).json({ ok:false, error:'Falta cantidad' });
