@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Stock — Mundo In</title>
+
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
 <style>
 :root{
   --brand:#184E56;
@@ -24,6 +26,8 @@ body{
   height:100vh;
   overflow:hidden;
 }
+
+/* NAV */
 nav{
   background:var(--brand);
   padding:10px 20px;
@@ -38,10 +42,12 @@ nav{
   border:1px solid rgba(255,255,255,.2);
   border-radius:6px;
   padding:8px 15px;
-  width:300px;
+  width:350px;
   color:#fff;
   outline:none;
 }
+
+/* TOOLBAR */
 .toolbar{
   background:#fff;
   padding:8px 20px;
@@ -61,6 +67,8 @@ nav{
 }
 .btn-tool:hover{background:#f3f4f6;color:var(--brand)}
 .btn-save-main{color:var(--excel-green)}
+
+/* GRID */
 .grid-container{
   flex:1;
   overflow:auto;
@@ -114,6 +122,8 @@ td{
   color:var(--brand);
 }
 tr:hover td{background:var(--selection)}
+
+/* FOOTER */
 footer{
   background:#f3f4f6;
   border-top:1px solid var(--border);
@@ -123,6 +133,8 @@ footer{
   font-size:11px;
   color:#6b7280;
 }
+
+/* TOAST */
 .toast{
   position:fixed;
   bottom:30px;
@@ -135,18 +147,9 @@ footer{
   align-items:center;
   gap:10px;
 }
-#csv-log{
-  max-height:200px;
-  overflow:auto;
-  margin:10px 20px;
-  padding:10px;
-  background:#f3f4f6;
-  border-radius:8px;
-  font-size:12px;
-  color:#111;
-}
 </style>
 </head>
+
 <body>
 
 <nav>
@@ -154,7 +157,7 @@ footer{
     <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
     <span style="opacity:.9;font-size:13px">CONTROL DE INVENTARIO</span>
   </div>
-  <input id="search-input" class="search-excel" placeholder="🔍 Buscar SKU o producto">
+  <input class="search-excel" placeholder="🔍 Buscar SKU o producto">
   <div>
     <i class="ph ph-bell"></i>
     <i class="ph ph-user-circle"></i>
@@ -164,12 +167,6 @@ footer{
 <div class="toolbar">
   <div class="btn-tool btn-save-main" onclick="guardar()">
     <i class="ph-fill ph-floppy-disk"></i> Guardar cambios
-  </div>
-  <div class="btn-tool" onclick="mostrarModalNuevo()">
-    <i class="ph ph-plus-circle"></i> Agregar producto
-  </div>
-  <div class="btn-tool">
-    <input type="file" id="csv-file" accept=".csv">
   </div>
   <div style="margin-left:auto;color:#059669;font-weight:600">
     ● Conectado a Base de Datos
@@ -198,8 +195,6 @@ footer{
 </table>
 </div>
 
-<div id="csv-log"></div>
-
 <footer>
   <div>SKU: RECA0904851</div>
   <div>Mundo In © 2024</div>
@@ -211,30 +206,29 @@ footer{
 </div>
 
 <script>
+const HANDLE='cama-luton';
+
 const SUCURSALES=[
  'stock_centro','suc_coyoacan','suc_benito_juarez',
  'suc_gustavo_baz','suc_naucalpan','suc_toluca',
  'suc_queretaro','suc_vallejo','suc_puebla'
 ];
 
-let productos = []; // Todos los productos cargados
-let filtro = '';
+async function cargar(){
+  const res=await fetch(`/api/metafield?handle=${HANDLE}`);
+  const j=await res.json();
 
-async function cargar(handle='cama-luton'){
-  const res = await fetch(`/api/metafield?handle=${handle}`);
-  const j = await res.json();
-  if(!j.ok) return alert(j.error);
-
-  const tr = document.createElement('tr');
+  const tr=document.createElement('tr');
   tr.innerHTML=`
-    <td><input class="cell-input" value="${handle}" readonly></td>
+    <td><input class="cell-input" value="RECA0904851" readonly></td>
     <td><input class="cell-input" value="Cama Luton Gris" readonly></td>
     <td><input class="cell-input" value="Individual" readonly></td>
-    ${SUCURSALES.map(k=>`<td><input class="cell-input stock-cell" data-key="${k}" value="${j.stocks?.[k]||0}"></td>`).join('')}
+    ${SUCURSALES.map(k=>`
+      <td><input class="cell-input stock-cell" data-key="${k}" value="${j.stocks?.[k]||0}"></td>
+    `).join('')}
   `;
   fila.innerHTML='';
   fila.appendChild(tr);
-  productos=[{handle, nombre:'Cama Luton Gris', variante:'Individual', stocks:j.stocks}];
 }
 
 async function guardar(){
@@ -242,78 +236,16 @@ async function guardar(){
   document.querySelectorAll('[data-key]').forEach(i=>{
     data[i.dataset.key]=Number(i.value);
   });
-  const handle=document.querySelector('td input.cell-input').value;
 
-  const res=await fetch('/api/metafield',{
+  await fetch('/api/metafield',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({handle, stocks:data})
+    body:JSON.stringify({handle:HANDLE,stocks:data})
   });
-  const j=await res.json();
-  if(j.ok){
-    toast.style.display='flex';
-    setTimeout(()=>toast.style.display='none',2000);
-  } else alert(j.error);
+
+  toast.style.display='flex';
+  setTimeout(()=>toast.style.display='none',2000);
 }
-
-document.getElementById('search-input').addEventListener('input', e=>{
-  filtro=e.target.value.toLowerCase();
-  renderTabla();
-});
-
-function renderTabla(){
-  fila.innerHTML='';
-  productos.filter(p=>{
-    return p.handle.toLowerCase().includes(filtro) || p.nombre.toLowerCase().includes(filtro);
-  }).forEach(p=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><input class="cell-input" value="${p.handle}" readonly></td>
-      <td><input class="cell-input" value="${p.nombre}" readonly></td>
-      <td><input class="cell-input" value="${p.variante}" readonly></td>
-      ${SUCURSALES.map(k=>`<td><input class="cell-input stock-cell" data-key="${k}" value="${p.stocks?.[k]||0}"></td>`).join('')}
-    `;
-    fila.appendChild(tr);
-  });
-}
-
-// ---------- CSV ----------
-document.getElementById('csv-file').addEventListener('change', async e=>{
-  const file=e.target.files[0];
-  if(!file) return;
-  const text=await file.text();
-  const lines=text.split('\n').filter(l=>l.trim());
-  const headers=lines.shift().split(',');
-  const csvProductos=[];
-  lines.forEach(l=>{
-    const obj={stocks:{}};
-    const cols=l.split(',');
-    headers.forEach((h,i)=>{
-      const key=h.trim().toLowerCase();
-      if(SUCURSALES.includes(key)) obj.stocks[key]=Number(cols[i]);
-      else if(key==='sku') obj.sku=cols[i];
-      else if(key==='nombre') obj.nombre=cols[i];
-      else if(key==='variante') obj.variante=cols[i];
-    });
-    csvProductos.push(obj);
-  });
-
-  const res=await fetch('/api/metafield',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({productosCSV:csvProductos})
-  });
-  const j=await res.json();
-  const log=document.getElementById('csv-log');
-  log.innerHTML='';
-  j.resultados.forEach(r=>{
-    const div=document.createElement('div');
-    div.textContent=`${r.sku}: ${r.ok ? '✅' : '❌ '+r.error}`;
-    log.appendChild(div);
-  });
-  productos=[...productos,...csvProductos];
-  renderTabla();
-});
 
 window.onload=cargar;
 </script>
