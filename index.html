@@ -5,201 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Stock — Mundo In</title>
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
 <style>
 :root{
   --brand:#184E56;
+  --brand-dark:#123a40;
   --excel-green:#107c41;
   --border:#d1d5db;
   --header-bg:#f3f4f6;
   --selection:#e7f3f0;
 }
 body{
-  font-family:'Segoe UI',sans-serif;
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
   margin:0;
-  height:100vh;
+  background:#fff;
+  color:#333;
   display:flex;
   flex-direction:column;
+  height:100vh;
+  overflow:hidden;
 }
+/* NAV */
 nav{
   background:var(--brand);
-  color:#fff;
   padding:10px 20px;
   display:flex;
-  justify-content:space-between;
   align-items:center;
+  justify-content:space-between;
+  color:#fff;
 }
+.logo-area{display:flex;align-items:center;gap:15px}
 .search-excel{
-  width:320px;
-  padding:8px 12px;
+  background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.2);
   border-radius:6px;
-  border:none;
+  padding:8px 15px;
+  width:350px;
+  color:#fff;
   outline:none;
 }
+/* TOOLBAR */
 .toolbar{
+  background:#fff;
   padding:8px 20px;
   border-bottom:1px solid var(--border);
   display:flex;
-  gap:20px;
   align-items:center;
+  gap:25px;
+  font-size:13px;
 }
-.btn-save-main{
-  color:var(--excel-green);
-  cursor:pointer;
+.btn-tool{
   display:flex;
+  align-items:center;
   gap:6px;
-  align-items:center;
+  cursor:pointer;
+  padding:6px 10px;
+  border-radius:4px;
 }
-.grid-container{
-  flex:1;
-  overflow:auto;
-}
-table{
-  border-collapse:collapse;
-  min-width:100%;
-}
-th,td{
-  border:1px solid var(--border);
-}
-th{
-  background:var(--header-bg);
-  padding:10px;
-  font-size:11px;
-  text-transform:uppercase;
-}
-td{
-  padding:0;
-}
-.cell-input{
-  width:100%;
-  height:38px;
-  border:none;
-  padding:0 10px;
-  text-align:center;
-}
-.cell-input:focus{
-  outline:2px solid var(--excel-green);
-}
-tr:hover td{
-  background:var(--selection);
-}
-.toast{
-  position:fixed;
-  bottom:25px;
-  right:25px;
-  background:#1f2937;
-  color:#fff;
-  padding:12px 18px;
-  border-radius:8px;
-  display:none;
-  gap:8px;
-  align-items:center;
-}
+.btn-tool:hover{background:#f3f4f6;color:var(--brand)}
+.btn-save-main{color:var(--excel-green)}
+/* GRID */
+.grid-container{flex:1;overflow:auto;background:#f8fafc;}
+table{border-collapse:collapse;width:max-content;min-width:100%;background:#fff;}
+th{background:var(--header-bg);position:sticky;top:0;z-index:10;padding:10px 15px;border:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;color:#4b5563;}
+th:nth-child(1),td:nth-child(1), th:nth-child(2),td:nth-child(2){position:sticky;left:0;z-index:11;}
+td{border:1px solid var(--border);padding:0;}
+.cell-input{width:100%;height:38px;border:2px solid transparent;padding:0 10px;background:transparent;outline:none;font-size:13px;}
+.cell-input:focus{background:#fff;border-color:var(--excel-green);}
+.stock-cell{width:90px;text-align:center;font-weight:700;color:var(--brand);}
+tr:hover td{background:var(--selection)}
+/* FOOTER */
+footer{background:#f3f4f6;border-top:1px solid var(--border);padding:4px 20px;display:flex;justify-content:space-between;font-size:11px;color:#6b7280;}
+/* TOAST */
+.toast{position:fixed;bottom:30px;right:30px;background:#1f2937;color:#fff;padding:12px 20px;border-radius:8px;display:none;align-items:center;gap:10px;}
 </style>
 </head>
-
 <body>
-
 <nav>
-  <div style="display:flex;gap:15px;align-items:center">
+  <div class="logo-area">
     <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
-    <strong>CONTROL DE INVENTARIO</strong>
+    <span style="opacity:.9;font-size:13px">CONTROL DE INVENTARIO</span>
   </div>
   <input class="search-excel" placeholder="🔍 Buscar SKU o producto">
+  <div>
+    <i class="ph ph-bell"></i>
+    <i class="ph ph-user-circle"></i>
+  </div>
 </nav>
 
 <div class="toolbar">
-  <div class="btn-save-main" onclick="guardar()">
+  <div class="btn-tool btn-save-main" onclick="guardar()">
     <i class="ph-fill ph-floppy-disk"></i> Guardar cambios
   </div>
-  <div style="margin-left:auto;color:#059669;font-weight:600">
-    ● Conectado a Shopify
-  </div>
+  <div style="margin-left:auto;color:#059669;font-weight:600">● Conectado a Shopify</div>
 </div>
 
 <div class="grid-container">
-<table>
-<thead>
-<tr>
-  <th>SKU</th>
-  <th>Producto</th>
-  <th>Variante</th>
-  <th>Centro</th>
-  <th>Coyoacán</th>
-  <th>Benito J.</th>
-  <th>Gustavo Baz</th>
-  <th>Naucalpan</th>
-  <th>Toluca</th>
-  <th>Querétaro</th>
-  <th>Vallejo</th>
-  <th>Puebla</th>
-</tr>
-</thead>
-<tbody id="fila"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Producto</th>
+        <th>Variante</th>
+        <th class="stock-cell">Centro</th>
+        <th class="stock-cell">Coyoacán</th>
+        <th class="stock-cell">Benito J.</th>
+        <th class="stock-cell">Gustavo Baz</th>
+        <th class="stock-cell">Naucalpan</th>
+        <th class="stock-cell">Toluca</th>
+        <th class="stock-cell">Querétaro</th>
+        <th class="stock-cell">Vallejo</th>
+        <th class="stock-cell">Puebla</th>
+      </tr>
+    </thead>
+    <tbody id="fila"></tbody>
+  </table>
 </div>
+
+<footer>
+  <div>SKU: RECA0904851</div>
+  <div>Mundo In © 2024</div>
+</footer>
 
 <div id="toast" class="toast">
   <i class="ph ph-check-circle" style="color:#22c55e"></i>
-  <span>Guardado correctamente</span>
+  <span>Guardado</span>
 </div>
 
 <script>
 const HANDLE = 'cama-luton';
-
 const SUCURSALES = [
-  'stock_centro',
-  'suc_coyoacan',
-  'suc_benito_juarez',
-  'suc_gustavo_baz',
-  'suc_naucalpan',
-  'suc_toluca',
-  'suc_queretaro',
-  'suc_vallejo',
-  'suc_puebla'
+  'stock_centro','suc_coyoacan','suc_benito_juarez','suc_gustavo_baz',
+  'suc_naucalpan','suc_toluca','suc_queretaro','suc_vallejo','suc_puebla'
 ];
 
 async function cargar(){
-  const res = await fetch(`/api/metafield?handle=${HANDLE}`);
-  const json = await res.json();
+  try {
+    const res = await fetch(`/api/metafield?handle=${HANDLE}`);
+    const data = await res.json();
+    const tr = document.createElement('tr');
 
-  const stocks = json.stocks || {};
-
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input class="cell-input" value="RECA0904851" readonly></td>
-    <td><input class="cell-input" value="Cama Luton Gris" readonly></td>
-    <td><input class="cell-input" value="Individual" readonly></td>
-    ${SUCURSALES.map(k => `
-      <td>
-        <input 
-          class="cell-input" 
-          data-key="${k}" 
-          type="number" 
-          min="0"
-          value="${stocks[k] ?? 0}">
-      </td>
-    `).join('')}
-  `;
-
-  fila.innerHTML = '';
-  fila.appendChild(tr);
+    tr.innerHTML = `
+      <td><input class="cell-input" value="RECA0904851" readonly></td>
+      <td><input class="cell-input" value="Cama Luton Gris" readonly></td>
+      <td><input class="cell-input" value="Individual" readonly></td>
+      ${SUCURSALES.map(k=>`<td><input class="cell-input stock-cell" data-key="${k}" value="${data.stocks?.[k]||0}"></td>`).join('')}
+    `;
+    fila.innerHTML = '';
+    fila.appendChild(tr);
+  } catch(err){
+    console.error('Error cargando stocks:', err);
+  }
 }
 
 async function guardar(){
-  const stocks = {};
+  const data = {};
   document.querySelectorAll('[data-key]').forEach(i=>{
-    stocks[i.dataset.key] = Number(i.value) || 0;
+    data[i.dataset.key] = Number(i.value);
   });
-
-  await fetch('/api/metafield', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ handle: HANDLE, stocks })
-  });
-
-  toast.style.display='flex';
-  setTimeout(()=>toast.style.display='none',2000);
+  try{
+    await fetch('/api/metafield', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({handle:HANDLE, stocks: data})
+    });
+    toast.style.display='flex';
+    setTimeout(()=>toast.style.display='none',2000);
+  }catch(err){
+    console.error('Error guardando stocks:', err);
+  }
 }
 
 window.onload = cargar;
