@@ -1,119 +1,142 @@
-// /pages/api/metafield.js
-export default async function handler(req, res) {
-  const SHOPIFY_HOST = 'mundo-jm-test.myshopify.com';
-  const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-  const VERSION = '2024-07';
+const SHOPIFY_HOST = 'mundo-jm-test.myshopify.com';
+const VERSION = '2024-07';
+const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
 
-  // --- CORS ---
+const SHOPIFY_URL = `https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`;
+
+// --------------------------------
+// Helper: fetch con retry
+// --------------------------------
+async function shopifyFetch(query, variables = {}, retries = 3) {
+  try {
+    const res = await fetch(SHOPIFY_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': TOKEN,
+        'Cache-Control': 'no-store'
+      },
+      body: JSON.stringify({ query, variables })
+    });
+
+    const json = await res.json();
+
+    if (json.errors) throw new Error(json.errors[0].message);
+    return json.data;
+
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 800));
+      return shopifyFetch(query, variables, retries - 1);
+    }
+    throw err;
+  }
+}
+
+// --------------------------------
+// API Handler
+// --------------------------------
+export default async function handler(req, res) {
+
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { handle, cantidad } = req.method === 'POST' ? req.body : req.query;
-
-    if (!handle) return res.status(400).json({ ok:false, error:'Falta handle' });
-
-    // -----------------------------
-    // Obtener productId
-    // -----------------------------
-    const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'X-Shopify-Access-Token':TOKEN
-      },
-      body: JSON.stringify({
-        query: `
-          query($handle:String!){
-            productByHandle(handle:$handle){
-              id
-            }
-          }
-        `,
-        variables: { handle }
-      })
-    });
-
-    const productJson = await productRes.json();
-    const productId = productJson?.data?.productByHandle?.id;
-    if (!productId) return res.status(404).json({ ok:false, error:'Producto no encontrado' });
-
-    // -----------------------------
-    // GET: devolver stock actual
-    // -----------------------------
-    if (req.method === 'GET') {
-      const stockRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'X-Shopify-Access-Token':TOKEN
-        },
-        body: JSON.stringify({
-          query: `
-            query($id:ID!){
-              product(id:$id){
-                metafield(namespace:"custom", key:"stock_por_sucursal"){
-                  value
-                  type
-                }
-              }
-            }
-          `,
-          variables: { id: productId }
-        })
-      });
-
-      const stockJson = await stockRes.json();
-      const value = stockJson?.data?.product?.metafield?.value ?? 0;
-      return res.json({ ok:true, stock: Number(value) });
+    const { handle } = req.method === 'GET' ? req.query : req.body;
+    if (!handle) {
+      return res.status(400).json({ ok:false, error:'Falta handle' });
     }
 
-    // -----------------------------
-    // POST: actualizar stock
-    // -----------------------------
-    if (req.method === 'POST') {
-      if (cantidad == null) return res.status(400).json({ ok:false, error:'Falta cantidad' });
+    // --------------------------------
+    // 1️⃣ Obtener productId
+    // --------------------------------
+    const productData = await shopifyFetch(`
+      query ($handle: String!) {
+        productByHandle(handle: $handle) {
+          id
+        }
+      }
+    `, { handle });
 
-      const saveRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'X-Shopify-Access-Token':TOKEN
-        },
-        body: JSON.stringify({
-          query: `
-            mutation($mf:[MetafieldsSetInput!]!){
-              metafieldsSet(metafields:$mf){
-                metafields{id value type}
-                userErrors{field,message}
-              }
+    const productId = productData?.productByHandle?.id;
+    if (!productId) {
+      return res.status(404).json({ ok:false, error:'Producto no encontrado' });
+    }
+
+    // --------------------------------
+    // 2️⃣ GET → leer stocks
+    // --------------------------------
+    if (req.method === 'GET') {
+      const data = await shopifyFetch(`
+        query ($id: ID!) {
+          product(id: $id) {
+            metafield(namespace: "custom", key: "stock_por_sucursal") {
+              value
+              type
             }
-          `,
-          variables:{
-            mf:[{
-              ownerId: productId,
-              namespace: 'custom',
-              key: 'stock_por_sucursal',
-              type: 'number_integer',
-              value: String(cantidad)
-            }]
           }
-        })
+        }
+      `, { id: productId });
+
+      let stocks = {};
+      try {
+        stocks = JSON.parse(
+          data?.product?.metafield?.value || '{}'
+        );
+      } catch {
+        stocks = {};
+      }
+
+      return res.json({ ok:true, stocks });
+    }
+
+    // --------------------------------
+    // 3️⃣ POST → guardar stocks
+    // --------------------------------
+    if (req.method === 'POST') {
+      const { stocks } = req.body;
+      if (!stocks || typeof stocks !== 'object') {
+        return res.status(400).json({ ok:false, error:'Stocks inválidos' });
+      }
+
+      const save = await shopifyFetch(`
+        mutation ($mf: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $mf) {
+            metafields {
+              id
+              key
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        mf: [{
+          ownerId: productId,
+          namespace: 'custom',
+          key: 'stock_por_sucursal',
+          type: 'json',
+          value: JSON.stringify(stocks)
+        }]
       });
 
-      const saveJson = await saveRes.json();
-      const errors = saveJson?.data?.metafieldsSet?.userErrors;
-      if(errors?.length) return res.status(400).json({ ok:false, error: errors[0].message });
+      const errors = save?.metafieldsSet?.userErrors;
+      if (errors?.length) {
+        return res.status(400).json({ ok:false, error: errors[0].message });
+      }
 
-      return res.json({ ok:true, stock: cantidad });
+      return res.json({ ok:true });
     }
 
     return res.status(405).json({ ok:false, error:'Método no permitido' });
 
-  } catch(err) {
-    console.error('Error /api/metafield:', err);
+  } catch (err) {
+    console.error('API metafield error:', err);
     return res.status(500).json({ ok:false, error: err.message });
   }
 }
