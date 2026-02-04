@@ -3,38 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Editor Stock — Mundo In</title>
+<title>Editor Maestro Mundo In</title>
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 <style>
-:root{
-  --brand:#184E56;
-  --excel-green:#107c41;
-  --border:#d1d5db;
-  --header-bg:#f3f4f6;
-  --selection:#e7f3f0;
-}
-body{
-  font-family:'Segoe UI',Tahoma,sans-serif;
-  margin:0; background:#fff; color:#333;
-  display:flex; flex-direction:column; height:100vh; overflow:hidden;
-}
+:root{ --brand:#184E56; --excel-green:#107c41; --border:#d1d5db; --header-bg:#f3f4f6; --selection:#e7f3f0; }
+body{ font-family:'Segoe UI',Tahoma,sans-serif; margin:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
 nav{ background:var(--brand); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; color:#fff; }
 .search-excel{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:6px; padding:8px 15px; width:400px; color:#fff; outline:none; }
-.toolbar{ background:#fff; padding:8px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:25px; font-size:13px; }
-.btn-tool{ display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 10px; border-radius:4px; font-weight:600; }
+.toolbar{ background:#fff; padding:8px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:15px; font-size:13px; }
+.btn-tool{ display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 12px; border-radius:4px; font-weight:600; border:1px solid #e5e7eb; transition:0.2s; }
 .btn-tool:hover{ background:#f3f4f6; }
-.btn-save-main{ color:var(--excel-green); border:1px solid #d1fae5; }
+.btn-save{ color:var(--excel-green); border-color:#d1fae5; }
+.btn-export{ color:#2563eb; border-color:#dbeafe; }
 .grid-container{ flex:1; overflow:auto; background:#f8fafc; }
 table{ border-collapse:collapse; width:max-content; min-width:100%; background:#fff; }
 th{ background:var(--header-bg); position:sticky; top:0; z-index:10; padding:10px 15px; border:1px solid var(--border); font-size:11px; font-weight:700; text-transform:uppercase; color:#4b5563; }
-.sticky-col{ position:sticky; left:0; z-index:11; background:#fff !important; border-right:2px solid var(--border) !important; }
+.sticky-col{ position:sticky; left:0; z-index:11; background:#fff !important; border-right:2px solid var(--border) !important; font-weight:bold; padding:0 15px; }
 td{ border:1px solid var(--border); padding:0; }
-.cell-input{ width:100%; height:38px; border:2px solid transparent; padding:0 10px; background:transparent; outline:none; font-size:13px; }
+.cell-input{ width:100%; height:38px; border:2px solid transparent; padding:0 10px; background:transparent; outline:none; font-size:13px; text-align:center; }
 .cell-input:focus{ background:#fff; border-color:var(--excel-green); }
-.stock-cell{ width:85px; text-align:center; font-weight:700; color:var(--brand); }
-.web-cell{ background:#fffbeb; color:#b45309; } /* Color especial para WEB */
+.stock-cell{ width:85px; font-weight:700; color:var(--brand); }
+.web-cell{ background:#fffbeb !important; color:#b45309; }
 tr:hover td{ background:var(--selection) !important; }
-footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:4px 20px; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
+footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
 .toast{ position:fixed; bottom:30px; right:30px; background:#1f2937; color:#fff; padding:12px 20px; border-radius:8px; display:none; align-items:center; gap:10px; z-index:100; }
 </style>
 </head>
@@ -43,17 +34,20 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:4px 20px
 <nav>
   <div class="logo-area">
     <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
-    <span style="opacity:.8; font-size:12px; margin-left:10px;">SISTEMA DE INSERTS REAL-TIME</span>
+    <span style="opacity:.8; font-size:12px; margin-left:10px;">PRO EDITOR v3.0</span>
   </div>
-  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y presiona ENTER para añadir...">
+  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y presiona ENTER para cargar...">
   <div><i class="ph-bold ph-user-circle" style="font-size:22px"></i></div>
 </nav>
 
 <div class="toolbar">
-  <div class="btn-tool btn-save-main" onclick="guardarTodo()">
-    <i class="ph-fill ph-floppy-disk"></i> Guardar todos los cambios
+  <div class="btn-tool btn-save" onclick="guardarTodo()">
+    <i class="ph-fill ph-floppy-disk"></i> Guardar en Shopify
   </div>
-  <div id="loadingStatus" style="margin-left:auto; color:#6b7280; font-weight:600">● Conectado a Shopify</div>
+  <div class="btn-tool btn-export" onclick="exportarCSV()">
+    <i class="ph-bold ph-download-simple"></i> Exportar CSV
+  </div>
+  <div id="loadingStatus" style="margin-left:auto; color:#6b7280;">● Conectado</div>
 </div>
 
 <div class="grid-container">
@@ -61,7 +55,7 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:4px 20px
     <thead>
       <tr>
         <th class="sticky-col">SKU</th>
-        <th class="stock-cell web-cell">WEB (Online)</th>
+        <th class="stock-cell web-cell">WEB</th>
         <th class="stock-cell">Centro</th>
         <th class="stock-cell">Coyoacán</th>
         <th class="stock-cell">Benito J.</th>
@@ -78,122 +72,111 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:4px 20px
 </div>
 
 <footer>
-  <div id="rowCount">Productos cargados: 0</div>
-  <div>Mundo In © 2026</div>
+  <div id="rowCount">Filas: 0</div>
+  <div>Mundo In © 2026 | Sistema de Inventario Real-Time</div>
 </footer>
 
-<div id="toast" class="toast">
-  <i class="ph ph-check-circle" style="color:#22c55e"></i>
-  <span>Cambios sincronizados en Shopify</span>
-</div>
+<div id="toast" class="toast"><i class="ph ph-check-circle" style="color:#22c55e"></i><span>¡Sincronizado!</span></div>
 
 <script>
-let CATALOGO_LOCAL = {}; // Diccionario SKU -> Handle del CSV
+let CATALOGO_LOCAL = {}; 
 const SUCURSALES = ['web','stock_centro','suc_coyoacan','suc_benito_juarez','suc_gustavo_baz','suc_naucalpan','suc_toluca','suc_queretaro','suc_vallejo','suc_puebla'];
 
-// 1. CARGAR CSV AL INICIO
-async function cargarCSV() {
+// Cargar catálogo inicial (CSV)
+async function init() {
   try {
     const res = await fetch('catalogo.csv');
-    const data = await res.text();
-    const lineas = data.split('\n').slice(1);
-    lineas.forEach(l => {
+    const text = await res.text();
+    text.split('\n').slice(1).forEach(l => {
       const c = l.split(',');
       if(c[1]) CATALOGO_LOCAL[c[1].trim().toUpperCase()] = c[0].trim();
     });
-    console.log("Catálogo CSV cargado");
-  } catch(e) { console.warn("No se encontró catalogo.csv, usando modo búsqueda directa."); }
+  } catch(e) { console.log("Modo búsqueda directa activo"); }
+  
+  // Prueba inicial
+  buscarYAgregar("RECA0904851");
 }
 
-// 2. BUSCADOR / INSERTADOR INTELIGENTE
-document.getElementById('masterSearch').addEventListener('keypress', async (e) => {
-  if (e.key === 'Enter') {
-    const sku = e.target.value.trim().toUpperCase();
-    if(!sku) return;
-    
-    document.getElementById('loadingStatus').innerText = "⏳ Buscando...";
-    const handle = CATALOGO_LOCAL[sku];
-    const query = handle ? `handle=${handle}` : `sku=${sku}`;
-
-    try {
-      const res = await fetch(`/api/metafield?${query}`);
-      const data = await res.json();
-      
-      if(data.ok) {
-        agregarFilaATabla(sku, data.handle, data.stocks);
-        e.target.value = "";
-        document.getElementById('loadingStatus').innerText = "● Conectado";
-      } else {
-        alert("SKU no encontrado: " + data.error);
-        document.getElementById('loadingStatus').innerText = "● Error";
-      }
-    } catch(err) { alert("Error de red"); }
-  }
+// BUSQUEDA REAL-TIME
+document.getElementById('masterSearch').addEventListener('keypress', e => {
+  if (e.key === 'Enter') buscarYAgregar(e.target.value.trim().toUpperCase());
 });
 
-function agregarFilaATabla(sku, handle, stocks) {
-  if(document.getElementById(`row-${sku}`)) {
-    document.getElementById(`row-${sku}`).scrollIntoView({behavior:'smooth'});
-    return;
-  }
+async function buscarYAgregar(sku) {
+  if(!sku) return;
+  if(document.getElementById(`row-${sku}`)) return;
 
-  const tbody = document.getElementById('tablaCuerpo');
+  const status = document.getElementById('loadingStatus');
+  status.innerText = "⏳ Buscando " + sku + "...";
+
+  const handle = CATALOGO_LOCAL[sku];
+  const query = handle ? `handle=${handle}` : `sku=${sku}`;
+
+  try {
+    const res = await fetch(`/api/metafield?${query}`);
+    const data = await res.json();
+    if(data.ok) {
+      renderRow(sku, data.handle, data.stocks);
+      document.getElementById('masterSearch').value = "";
+      status.innerText = "● Conectado";
+    } else {
+      alert("No se encontró el producto en Shopify");
+      status.innerText = "● Error";
+    }
+  } catch(err) { status.innerText = "● Error de red"; }
+}
+
+function renderRow(sku, handle, stocks) {
   const tr = document.createElement('tr');
   tr.id = `row-${sku}`;
   tr.dataset.handle = handle;
-
   tr.innerHTML = `
-    <td class="sticky-col"><input class="cell-input" value="${sku}" readonly></td>
+    <td class="sticky-col">${sku}</td>
     ${SUCURSALES.map(k => `
-      <td>
-        <input type="number" 
-               class="cell-input stock-cell ${k === 'web' ? 'web-cell' : ''}" 
-               data-key="${k}" 
-               value="${stocks[k] || 0}">
-      </td>
+      <td><input type="number" class="cell-input stock-cell ${k=='web'?'web-cell':''}" data-key="${k}" value="${stocks[k]||0}"></td>
     `).join('')}
   `;
-  tbody.prepend(tr);
+  document.getElementById('tablaCuerpo').prepend(tr);
   actualizarContador();
 }
 
-// 3. GUARDADO MASIVO (Recorre la tabla e impacta Shopify)
 async function guardarTodo() {
   const filas = document.querySelectorAll('#tablaCuerpo tr');
-  if(filas.length === 0) return;
-
-  document.getElementById('loadingStatus').innerText = "⏳ Sincronizando...";
-  
+  document.getElementById('loadingStatus').innerText = "⏳ Guardando...";
   for(let row of filas) {
-    const handle = row.dataset.handle;
     const stocks = {};
-    row.querySelectorAll('[data-key]').forEach(input => {
-      stocks[input.dataset.key] = Number(input.value);
-    });
-
+    row.querySelectorAll('[data-key]').forEach(i => stocks[i.dataset.key] = Number(i.value));
     await fetch('/api/metafield', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ handle, stocks })
+      body: JSON.stringify({ handle: row.dataset.handle, stocks })
     });
   }
-
   document.getElementById('loadingStatus').innerText = "● Conectado";
   showToast();
 }
 
-function actualizarContador() {
-  const n = document.querySelectorAll('#tablaCuerpo tr').length;
-  document.getElementById('rowCount').innerText = `Productos cargados: ${n}`;
+// FUNCIÓN DE EXPORTACIÓN CSV
+function exportarCSV() {
+  let csv = "Handle,SKU,WEB,Centro,Coyoacan,Benito_Juarez,Gustavo_Baz,Naucalpan,Toluca,Queretaro,Vallejo,Puebla\n";
+  document.querySelectorAll('#tablaCuerpo tr').forEach(row => {
+    const sku = row.id.replace('row-', '');
+    const handle = row.dataset.handle;
+    const vals = Array.from(row.querySelectorAll('input')).map(i => i.value);
+    csv += `${handle},${sku},${vals.join(',')}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `inventario_mundo_in_${new Date().toLocaleDateString()}.csv`);
+  a.click();
 }
 
-function showToast() {
-  const t = document.getElementById('toast');
-  t.style.display = 'flex';
-  setTimeout(() => t.style.display = 'none', 3000);
-}
+function actualizarContador() { document.getElementById('rowCount').innerText = "Filas: " + document.querySelectorAll('#tablaCuerpo tr').length; }
+function showToast() { const t = document.getElementById('toast'); t.style.display = 'flex'; setTimeout(() => t.style.display = 'none', 3000); }
 
-window.onload = cargarCSV;
+window.onload = init;
 </script>
 </body>
 </html>
