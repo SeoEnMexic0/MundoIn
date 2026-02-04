@@ -3,77 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editor Maestro Mundo In — Ultra Full</title>
+<title>Mundo In — Pro Inventory Editor</title>
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 <style>
 :root{ --brand:#184E56; --excel-green:#107c41; --border:#d1d5db; --header-bg:#f3f4f6; --selection:#e7f3f0; }
-body{ font-family:'Segoe UI',Tahoma,sans-serif; margin:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
-nav{ background:var(--brand); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; color:#fff; }
-.search-excel{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:6px; padding:8px 15px; width:350px; color:#fff; outline:none; }
-.toolbar{ background:#fff; padding:8px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; font-size:13px; }
-.btn-tool{ display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 12px; border-radius:4px; font-weight:600; border:1px solid #e5e7eb; transition:0.2s; user-select:none; }
-.btn-tool:hover{ background:#f3f4f6; }
+body{ font-family:'Segoe UI',Tahoma,sans-serif; margin:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; background:#f9fafb; }
+nav{ background:var(--brand); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; color:#fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.search-excel{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:6px; padding:8px 15px; width:380px; color:#fff; outline:none; transition: 0.3s; }
+.search-excel:focus{ background:rgba(255,255,255,.25); border-color:#fff; }
+.toolbar{ background:#fff; padding:10px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+.btn-tool{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:8px 14px; border-radius:6px; font-weight:600; font-size:13px; border:1px solid #e5e7eb; transition:0.2s; user-select:none; }
+.btn-tool:hover{ background:#f3f4f6; transform: translateY(-1px); }
 .btn-save{ color:white; background:var(--excel-green); border-color:var(--excel-green); }
-.btn-save:hover{ background:#0d6334; }
+.btn-save:hover{ background:#0d6334; box-shadow: 0 2px 6px rgba(16,124,65,0.2); }
 .btn-add{ color:var(--brand); border-color:var(--brand); }
-.grid-container{ flex:1; overflow:auto; background:#f8fafc; }
+.grid-container{ flex:1; overflow:auto; padding:0; }
 table{ border-collapse:collapse; width:max-content; min-width:100%; background:#fff; }
-th{ background:var(--header-bg); position:sticky; top:0; z-index:10; padding:10px 15px; border:1px solid var(--border); font-size:11px; font-weight:700; text-transform:uppercase; color:#4b5563; }
-.sticky-col{ position:sticky; left:0; z-index:11; background:#fff !important; border-right:2px solid var(--border) !important; font-weight:bold; padding:0 15px; text-align:center; }
+th{ background:var(--header-bg); position:sticky; top:0; z-index:10; padding:12px 15px; border:1px solid var(--border); font-size:11px; font-weight:800; text-transform:uppercase; color:#4b5563; text-align:center; }
+.sticky-col{ position:sticky; left:0; z-index:11; background:#fff !important; border-right:2px solid var(--border) !important; font-weight:800; text-align:center; color: var(--brand); }
 td{ border:1px solid var(--border); padding:0; }
-.cell-input{ width:100%; height:38px; border:2px solid transparent; padding:0 10px; background:transparent; outline:none; font-size:13px; text-align:center; }
-.cell-input:focus{ background:#fff; border-color:var(--excel-green); }
-.stock-cell{ width:85px; font-weight:700; color:var(--brand); }
-.web-cell{ background:#fffbeb !important; color:#b45309; border-left: 2px solid #fbbf24 !important;}
+.cell-input{ width:100%; height:42px; border:2px solid transparent; padding:0; background:transparent; outline:none; font-size:14px; text-align:center; font-family: 'Consolas', monospace; }
+.cell-input:focus{ background:#fff; border-color:var(--excel-green); z-index:5; position:relative; }
+.stock-cell{ width:90px; font-weight:700; color:#1f2937; }
+.web-cell{ background:#fffbeb !important; color:#b45309; border-left: 2px solid #fbbf24 !important; }
 tr:hover td{ background:var(--selection) !important; }
-footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
-.toast{ position:fixed; bottom:30px; right:30px; background:#1f2937; color:#fff; padding:12px 20px; border-radius:8px; display:none; align-items:center; gap:10px; z-index:100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+footer{ background:#fff; border-top:1px solid var(--border); padding:8px 20px; display:flex; justify-content:space-between; font-size:11px; color:#9ca3af; font-weight:500; }
+.toast{ position:fixed; bottom:30px; right:30px; background:#111827; color:#fff; padding:14px 24px; border-radius:10px; display:none; align-items:center; gap:12px; z-index:1000; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 input[type="file"] { display: none; }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="logo-area">
-    <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
-    <span style="opacity:.8; font-size:12px; margin-left:10px;">INVENTORY ENGINE v5.0</span>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="120">
+    <div style="width:1px; height:24px; background:rgba(255,255,255,0.2);"></div>
+    <span style="font-weight:700; font-size:14px; letter-spacing:0.5px;">INVENTORY HUB PRO</span>
   </div>
-  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y ENTER para cargar...">
-  <div><i class="ph-bold ph-user-circle" style="font-size:22px"></i></div>
+  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y ENTER para cargar producto...">
+  <div style="display:flex; gap:15px; align-items:center;">
+    <i class="ph-bold ph-database" style="font-size:20px; opacity:0.7"></i>
+    <i class="ph-bold ph-user-circle-gear" style="font-size:24px"></i>
+  </div>
 </nav>
 
 <div class="toolbar">
-  <label class="btn-tool">
-    <i class="ph-bold ph-file-csv"></i> Importar CSV
+  <label class="btn-tool" title="Cargar archivo CSV de inventario">
+    <i class="ph-bold ph-file-csv" style="font-size:18px; color:#107c41"></i> Importar CSV
     <input type="file" id="csvInput" accept=".csv">
   </label>
   <div class="btn-tool btn-add" onclick="forzarNuevoSku()">
-    <i class="ph-bold ph-plus-circle"></i> Añadir Nuevo SKU
+    <i class="ph-bold ph-plus-circle" style="font-size:18px"></i> Carga Manual
   </div>
   <div class="btn-tool btn-save" onclick="guardarTodo()">
-    <i class="ph-fill ph-floppy-disk"></i> Guardar en Shopify
+    <i class="ph-fill ph-cloud-arrow-up" style="font-size:18px"></i> SINCRONIZAR SHOPIFY
   </div>
-  <div class="btn-tool" onclick="exportarCSV()">
+  <div class="btn-tool" onclick="exportarCSV()" style="margin-left:auto;">
     <i class="ph-bold ph-download-simple"></i> Exportar
   </div>
-  <div id="loadingStatus" style="margin-left:auto; color:#6b7280; font-weight:bold;">● Sistema Listo</div>
+  <div id="loadingStatus" style="font-weight:700; font-size:12px; color:#059669; padding:0 10px;">● SISTEMA ONLINE</div>
 </div>
 
 <div class="grid-container">
   <table>
     <thead>
       <tr>
-        <th class="sticky-col">SKU</th>
-        <th class="stock-cell web-cell">WEB (Online)</th>
-        <th class="stock-cell">Centro</th>
-        <th class="stock-cell">Coyoacán</th>
-        <th class="stock-cell">Benito J.</th>
-        <th class="stock-cell">Gustavo Baz</th>
-        <th class="stock-cell">Naucalpan</th>
-        <th class="stock-cell">Toluca</th>
-        <th class="stock-cell">Querétaro</th>
-        <th class="stock-cell">Vallejo</th>
-        <th class="stock-cell">Puebla</th>
+        <th class="sticky-col">SKU IDENTIFIER</th>
+        <th class="stock-cell web-cell">E-COMMERCE (WEB)</th>
+        <th class="stock-cell">CENTRO</th>
+        <th class="stock-cell">COYOACÁN</th>
+        <th class="stock-cell">BENITO J.</th>
+        <th class="stock-cell">GUSTAVO BAZ</th>
+        <th class="stock-cell">NAUCALPAN</th>
+        <th class="stock-cell">TOLUCA</th>
+        <th class="stock-cell">QUERÉTARO</th>
+        <th class="stock-cell">VALLEJO</th>
+        <th class="stock-cell">PUEBLA</th>
       </tr>
     </thead>
     <tbody id="tablaCuerpo"></tbody>
@@ -81,24 +86,28 @@ input[type="file"] { display: none; }
 </div>
 
 <footer>
-  <div id="rowCount">Productos en sesión: 0</div>
-  <div>Mundo In © 2026 | Arquitectura de Metafields Real-Time</div>
+  <div id="rowCount">0 PRODUCTOS ACTIVOS</div>
+  <div>MUNDO IN MÉXICO — CONECTIVIDAD GRAPHQL LÍDER EN LA INDUSTRIA</div>
 </footer>
 
-<div id="toast" class="toast"><i class="ph ph-check-circle" style="color:#22c55e"></i><span id="toastMsg">¡Sincronizado!</span></div>
+<div id="toast" class="toast">
+  <i class="ph-bold ph-check-circle" style="color:#22c55e; font-size:20px"></i>
+  <span id="toastMsg">Sincronización Exitosa</span>
+</div>
 
 <script>
 let CATALOGO_MAP = {}; 
 const SUCURSALES = ['web','stock_centro','suc_coyoacan','suc_benito_juarez','suc_gustavo_baz','suc_naucalpan','suc_toluca','suc_queretaro','suc_vallejo','suc_puebla'];
 
-// 1. IMPORTACIÓN DINÁMICA DE CSV
+// 1. IMPORTACIÓN ADITIVA (ESCENARIO DE JUNTA)
 document.getElementById('csvInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async function(event) {
     const filas = event.target.result.split('\n').slice(1);
-    document.getElementById('tablaCuerpo').innerHTML = ""; 
+    document.getElementById('loadingStatus').innerText = "⏳ INTEGRANDO DATOS...";
+    
     for (let f of filas) {
       const c = f.split(',');
       if (c.length < 2) continue;
@@ -106,29 +115,44 @@ document.getElementById('csvInput').addEventListener('change', function(e) {
       const sku = c[1].trim().toUpperCase();
       const stocks = {};
       SUCURSALES.forEach((key, i) => stocks[key] = c[i+2] ? c[i+2].trim() : 0);
+
       CATALOGO_MAP[sku] = handle;
-      renderRow(sku, handle, stocks);
+      
+      // SI EL SKU YA EXISTE, ACTUALIZA VALORES. SI NO, CREA FILA.
+      const row = document.getElementById(`row-${sku}`);
+      if (row) {
+        SUCURSALES.forEach(k => row.querySelector(`[data-key="${k}"]`).value = stocks[k]);
+      } else {
+        renderRow(sku, handle, stocks);
+      }
     }
+    document.getElementById('loadingStatus').innerText = "● INTEGRACIÓN COMPLETA";
     actualizarContador();
   };
   reader.readAsText(file);
 });
 
-// 2. BUSCADOR / AGREGAR NUEVO SKU
+// 2. BUSCADOR / MANUAL
 document.getElementById('masterSearch').addEventListener('keypress', e => {
   if (e.key === 'Enter') buscarYAgregar(e.target.value.trim().toUpperCase());
 });
 
 function forzarNuevoSku() {
-  const sku = prompt("Ingresa el SKU del producto nuevo (Ya debe existir en Shopify):");
+  const sku = prompt("SKU del producto (Sincronización en tiempo real):");
   if (sku) buscarYAgregar(sku.trim().toUpperCase());
 }
 
 async function buscarYAgregar(sku) {
-  if(!sku || document.getElementById(`row-${sku}`)) return;
+  if(!sku) return;
   const status = document.getElementById('loadingStatus');
-  status.innerText = "🔍 Buscando " + sku + "...";
   
+  // SI YA ESTÁ, SCROLLEAMOS HACIA ALLÁ
+  if(document.getElementById(`row-${sku}`)) {
+    document.getElementById(`row-${sku}`).scrollIntoView({behavior:'smooth'});
+    return;
+  }
+
+  status.innerText = "🔍 CONSULTANDO SHOPIFY: " + sku;
   const handle = CATALOGO_MAP[sku];
   const query = handle ? `handle=${handle}` : `sku=${sku}`;
 
@@ -138,12 +162,12 @@ async function buscarYAgregar(sku) {
     if(data.ok) {
       renderRow(sku, data.handle, data.stocks);
       document.getElementById('masterSearch').value = "";
-      status.innerText = "● Conectado";
+      status.innerText = "● CONECTADO";
     } else {
-      alert("Error: El SKU no existe en Shopify o no tiene metafields configurados.");
-      status.innerText = "● Error";
+      alert("⚠️ El SKU no existe en Shopify. Verifica que el producto esté publicado.");
+      status.innerText = "● ERROR";
     }
-  } catch(err) { status.innerText = "● Error de Red"; }
+  } catch(err) { status.innerText = "● ERROR DE CONEXIÓN"; }
 }
 
 function renderRow(sku, handle, stocks) {
@@ -160,22 +184,26 @@ function renderRow(sku, handle, stocks) {
   actualizarContador();
 }
 
-// 3. GUARDADO Y EXPORTACIÓN
+// 3. SINCRONIZACIÓN MASIVA
 async function guardarTodo() {
   const filas = document.querySelectorAll('#tablaCuerpo tr');
   if (filas.length === 0) return;
-  document.getElementById('loadingStatus').innerText = "⏳ Sincronizando...";
+  const status = document.getElementById('loadingStatus');
+  status.innerText = "⏳ IMPACTANDO BASE DE DATOS...";
+  
   for(let row of filas) {
     const stocks = {};
     row.querySelectorAll('[data-key]').forEach(i => stocks[i.dataset.key] = Number(i.value));
+    
+    // IMPACTO ATÓMICO POR PRODUCTO
     await fetch('/api/metafield', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ handle: row.dataset.handle, stocks })
     });
   }
-  document.getElementById('loadingStatus').innerText = "● Conectado";
-  showToast("Inventario actualizado en Shopify");
+  status.innerText = "● SINCRONIZADO";
+  showToast("Inventario actualizado en la Nube");
 }
 
 function exportarCSV() {
@@ -188,19 +216,19 @@ function exportarCSV() {
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `Carga_MundoIn_${new Date().getTime()}.csv`;
+  a.download = `Audit_MundoIn_${Date.now()}.csv`;
   a.click();
 }
 
-function actualizarContador() { document.getElementById('rowCount').innerText = "Productos: " + document.querySelectorAll('#tablaCuerpo tr').length; }
+function actualizarContador() { document.getElementById('rowCount').innerText = document.querySelectorAll('#tablaCuerpo tr').length + " PRODUCTOS ACTIVOS"; }
 function showToast(msg) { 
   const t = document.getElementById('toast'); 
   document.getElementById('toastMsg').innerText = msg;
   t.style.display = 'flex'; 
-  setTimeout(() => t.style.display = 'none', 3000); 
+  setTimeout(() => t.style.display = 'none', 4000); 
 }
 
-// AUTO-CARGA INICIAL (Cátedra: Sincronización al arranque)
+// AUTO-CARGA DE SEGURIDAD
 window.onload = () => buscarYAgregar("RECA0904851");
 </script>
 </body>
