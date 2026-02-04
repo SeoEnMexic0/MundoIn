@@ -1,29 +1,28 @@
 /**
- * MIDDLEWARE MAESTRO DE INVENTARIO - MUNDO IN
- * Optimizado para: Carga masiva, Búsqueda por SKU y Mutaciones Atómicas.
+ * MIDDLEWARE DE INVENTARIO REAL-TIME - MUNDO IN
+ * Optimizado para: Descubrimiento de SKUs, Mapeo WEB y Mutaciones Atómicas.
  */
 
 export default async function handler(req, res) {
-  // CONFIGURACIÓN DE ENTORNO
+  // CONFIGURACIÓN DE ENTORNO SEGURO
   const SHOPIFY_HOST = 'mundo-jm-test.myshopify.com';
   const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
   const VERSION = '2024-07';
 
-  // 1. CONTROL DE ACCESO (CORS) - Indispensable para que tu index.html no falle
+  // 1. HEADERS DE SEGURIDAD Y CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // 2. EXTRACCIÓN DINÁMICA DE PARÁMETROS
     const { handle, sku, stocks } = req.method === 'POST' ? req.body : req.query;
     let productId = null;
     let activeHandle = handle;
 
     /**
-     * FASE 1: RESOLUCIÓN DE IDENTIDAD (Reverse Lookup)
-     * Si no tenemos el Handle (producto nuevo o manual), lo buscamos en Shopify vía SKU.
+     * FASE 1: RESOLUCIÓN DINÁMICA DE IDENTIDAD (Discovery Mode)
+     * Si el sistema recibe un SKU sin handle, consulta Shopify para "descubrir" el producto.
      */
     if (sku && !handle) {
       const searchRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
@@ -38,18 +37,18 @@ export default async function handler(req, res) {
           variables: { q: `sku:${sku}` }
         })
       });
-      const searchJson = await searchRes.json();
-      const found = searchJson?.data?.productVariants?.edges[0]?.node?.product;
+      const searchData = await searchRes.json();
+      const found = searchData?.data?.productVariants?.edges[0]?.node?.product;
       
-      if (!found) return res.status(404).json({ ok: false, error: `SKU ${sku} no existe en Shopify` });
+      if (!found) return res.status(404).json({ ok: false, error: `SKU ${sku} no localizado en Shopify` });
       
       productId = found.id;
       activeHandle = found.handle;
     }
 
-    // Si ya tenemos el Handle, obtenemos el ID necesario para las mutaciones
+    // Obtención de ID por Handle (Fallback)
     if (!productId && activeHandle) {
-      const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
+      const pRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
         body: JSON.stringify({
@@ -57,18 +56,18 @@ export default async function handler(req, res) {
           variables: { h: activeHandle }
         })
       });
-      const pJson = await productRes.json();
-      productId = pJson?.data?.productByHandle?.id;
+      const pData = await pRes.json();
+      productId = pData?.data?.productByHandle?.id;
     }
 
-    if (!productId) return res.status(404).json({ ok: false, error: 'Identificador de producto no encontrado' });
+    if (!productId) return res.status(404).json({ ok: false, error: 'Producto no identificado' });
 
     /**
-     * FASE 2: MAPEO TÉCNICO DE METAFIELDS
-     * Vinculamos las columnas de tu CSV con los nombres técnicos en Shopify.
+     * FASE 2: MAPEO ESTRATÉGICO DE METACAMPOS (9+1)
+     * Vinculación de la interfaz con los namespaces técnicos de Shopify.
      */
     const MAPPING = {
-      'web': 'stock_por_sucursal', // Mapeo solicitado: WEB -> custom.stock_por_sucursal
+      'web': 'stock_por_sucursal', // Mapeo crítico para inventario online
       'stock_centro': 'stock_centro',
       'suc_coyoacan': 'suc_coyoacan',
       'suc_benito_juarez': 'suc_benito_juarez',
@@ -81,8 +80,8 @@ export default async function handler(req, res) {
     };
 
     /**
-     * OPERACIÓN GET: RECUPERACIÓN DE DATOS (Read)
-     * Usamos Aliases en GraphQL para traer los 10 campos en una sola petición.
+     * OPERACIÓN GET: CONSULTA SINCRONIZADA
+     * Recupera los 10 valores de stock en un solo ciclo de reloj usando Aliases.
      */
     if (req.method === 'GET') {
       const keys = Object.keys(MAPPING);
@@ -98,20 +97,20 @@ export default async function handler(req, res) {
           variables: { id: productId }
         })
       });
-      const mfJson = await mfRes.json();
+      const mfData = await mfRes.json();
       const currentStocks = {};
       keys.forEach((k, i) => {
-        currentStocks[k] = mfJson?.data?.product?.[`f${i}`]?.value || 0;
+        currentStocks[k] = mfData?.data?.product?.[`f${i}`]?.value || 0;
       });
       return res.json({ ok: true, handle: activeHandle, stocks: currentStocks });
     }
 
     /**
-     * OPERACIÓN POST: ACTUALIZACIÓN MASIVA (Write)
-     * Implementamos MetafieldsSet para una mutación atómica y segura.
+     * OPERACIÓN POST: ACTUALIZACIÓN ATÓMICA (Insert)
+     * Procesa la mutación masiva de metafields garantizando integridad de datos.
      */
     if (req.method === 'POST') {
-      if (!stocks) return res.status(400).json({ ok: false, error: 'No se enviaron datos de inventario' });
+      if (!stocks) return res.status(400).json({ ok: false, error: 'Payload de inventario vacío' });
 
       const mutations = Object.keys(MAPPING).map(key => {
         if (!(key in stocks)) return null;
@@ -120,7 +119,7 @@ export default async function handler(req, res) {
           namespace: 'custom',
           key: MAPPING[key],
           type: 'number_integer',
-          value: String(stocks[key]) // Shopify requiere que el número viaje como String
+          value: String(stocks[key]) // Transmisión de entero como String (Requisito GraphQL)
         };
       }).filter(Boolean);
 
@@ -138,17 +137,14 @@ export default async function handler(req, res) {
       });
       
       const saveData = await saveRes.json();
-      const userErrors = saveData?.data?.metafieldsSet?.userErrors;
+      const errors = saveData?.data?.metafieldsSet?.userErrors;
       
-      if (userErrors && userErrors.length > 0) {
-        return res.status(400).json({ ok: false, error: userErrors[0].message });
-      }
+      if (errors && errors.length > 0) return res.status(400).json({ ok: false, error: errors[0].message });
 
       return res.json({ ok: true });
     }
 
   } catch (err) {
-    console.error('CRITICAL ERROR:', err);
-    return res.status(500).json({ ok: false, error: 'Error interno en el servidor' });
+    return res.status(500).json({ ok: false, error: 'Falla crítica en el middleware' });
   }
 }
