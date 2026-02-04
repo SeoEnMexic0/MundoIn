@@ -118,7 +118,6 @@ document.getElementById('csvInput').addEventListener('change', function(e) {
 
       CATALOGO_MAP[sku] = handle;
       
-      // SI EL SKU YA EXISTE, ACTUALIZA VALORES. SI NO, CREA FILA.
       const row = document.getElementById(`row-${sku}`);
       if (row) {
         SUCURSALES.forEach(k => row.querySelector(`[data-key="${k}"]`).value = stocks[k]);
@@ -138,7 +137,7 @@ document.getElementById('masterSearch').addEventListener('keypress', e => {
 });
 
 function forzarNuevoSku() {
-  const sku = prompt("SKU del producto (Sincronización en tiempo real):");
+  const sku = prompt("SKU de la Variante (Individual, Matrimonial, etc.):");
   if (sku) buscarYAgregar(sku.trim().toUpperCase());
 }
 
@@ -146,25 +145,23 @@ async function buscarYAgregar(sku) {
   if(!sku) return;
   const status = document.getElementById('loadingStatus');
   
-  // SI YA ESTÁ, SCROLLEAMOS HACIA ALLÁ
   if(document.getElementById(`row-${sku}`)) {
     document.getElementById(`row-${sku}`).scrollIntoView({behavior:'smooth'});
     return;
   }
 
   status.innerText = "🔍 CONSULTANDO SHOPIFY: " + sku;
-  const handle = CATALOGO_MAP[sku];
-  const query = handle ? `handle=${handle}` : `sku=${sku}`;
-
+  
   try {
-    const res = await fetch(`/api/metafield?${query}`);
+    // Buscamos directamente por SKU para que el backend resuelva la Variante ID
+    const res = await fetch(`/api/metafield?sku=${sku}`);
     const data = await res.json();
     if(data.ok) {
       renderRow(sku, data.handle, data.stocks);
       document.getElementById('masterSearch').value = "";
       status.innerText = "● CONECTADO";
     } else {
-      alert("⚠️ El SKU no existe en Shopify. Verifica que el producto esté publicado.");
+      alert("⚠️ SKU de Variante no encontrado.");
       status.innerText = "● ERROR";
     }
   } catch(err) { status.innerText = "● ERROR DE CONEXIÓN"; }
@@ -172,7 +169,7 @@ async function buscarYAgregar(sku) {
 
 function renderRow(sku, handle, stocks) {
   const tr = document.createElement('tr');
-  tr.id = `row-${sku}`;
+  tr.id = `row-${sku}`; // Identidad por SKU de variante para evitar duplicados entre tamaños
   tr.dataset.handle = handle;
   tr.innerHTML = `
     <td class="sticky-col">${sku}</td>
@@ -192,14 +189,15 @@ async function guardarTodo() {
   status.innerText = "⏳ IMPACTANDO BASE DE DATOS...";
   
   for(let row of filas) {
+    const sku = row.id.replace('row-', '');
     const stocks = {};
     row.querySelectorAll('[data-key]').forEach(i => stocks[i.dataset.key] = Number(i.value));
     
-    // IMPACTO ATÓMICO POR PRODUCTO
+    // Enviamos el SKU para que el backend use el ID de la Variante específica
     await fetch('/api/metafield', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ handle: row.dataset.handle, stocks })
+      body: JSON.stringify({ sku: sku, stocks: stocks })
     });
   }
   status.innerText = "● SINCRONIZADO";
