@@ -1,21 +1,30 @@
+/**
+ * MIDDLEWARE MAESTRO DE INVENTARIO - MUNDO IN
+ * Optimizado para: Carga masiva, Búsqueda por SKU y Mutaciones Atómicas.
+ */
+
 export default async function handler(req, res) {
+  // CONFIGURACIÓN DE ENTORNO
   const SHOPIFY_HOST = 'mundo-jm-test.myshopify.com';
   const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
   const VERSION = '2024-07';
 
-  // --- Configuración de CORS ---
+  // 1. CONTROL DE ACCESO (CORS) - Indispensable para que tu index.html no falle
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // 2. EXTRACCIÓN DINÁMICA DE PARÁMETROS
     const { handle, sku, stocks } = req.method === 'POST' ? req.body : req.query;
     let productId = null;
     let activeHandle = handle;
 
-    // 1. RESOLUCIÓN DE IDENTIDAD (Discovery Mode)
-    // Si el SKU no está en el CSV, lo buscamos directo en Shopify
+    /**
+     * FASE 1: RESOLUCIÓN DE IDENTIDAD (Reverse Lookup)
+     * Si no tenemos el Handle (producto nuevo o manual), lo buscamos en Shopify vía SKU.
+     */
     if (sku && !handle) {
       const searchRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
@@ -32,13 +41,13 @@ export default async function handler(req, res) {
       const searchJson = await searchRes.json();
       const found = searchJson?.data?.productVariants?.edges[0]?.node?.product;
       
-      if (!found) return res.status(404).json({ ok: false, error: 'SKU no existe en Shopify' });
+      if (!found) return res.status(404).json({ ok: false, error: `SKU ${sku} no existe en Shopify` });
       
       productId = found.id;
       activeHandle = found.handle;
     }
 
-    // 2. OBTENER PRODUCT ID POR HANDLE
+    // Si ya tenemos el Handle, obtenemos el ID necesario para las mutaciones
     if (!productId && activeHandle) {
       const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
@@ -52,12 +61,14 @@ export default async function handler(req, res) {
       productId = pJson?.data?.productByHandle?.id;
     }
 
-    if (!productId) return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
+    if (!productId) return res.status(404).json({ ok: false, error: 'Identificador de producto no encontrado' });
 
-    // 3. MAPEO MAESTRO DE METACAMPOS (9 Sucursales + WEB)
-    // Mapeamos 'web' al campo custom.stock_por_sucursal según el formato solicitado
+    /**
+     * FASE 2: MAPEO TÉCNICO DE METAFIELDS
+     * Vinculamos las columnas de tu CSV con los nombres técnicos en Shopify.
+     */
     const MAPPING = {
-      'web': 'stock_por_sucursal',
+      'web': 'stock_por_sucursal', // Mapeo solicitado: WEB -> custom.stock_por_sucursal
       'stock_centro': 'stock_centro',
       'suc_coyoacan': 'suc_coyoacan',
       'suc_benito_juarez': 'suc_benito_juarez',
@@ -69,7 +80,10 @@ export default async function handler(req, res) {
       'suc_puebla': 'suc_puebla'
     };
 
-    // --- GET: OBTENER TODOS LOS STOCKS ACTUALES ---
+    /**
+     * OPERACIÓN GET: RECUPERACIÓN DE DATOS (Read)
+     * Usamos Aliases en GraphQL para traer los 10 campos en una sola petición.
+     */
     if (req.method === 'GET') {
       const keys = Object.keys(MAPPING);
       const mfRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
@@ -92,8 +106,13 @@ export default async function handler(req, res) {
       return res.json({ ok: true, handle: activeHandle, stocks: currentStocks });
     }
 
-    // --- POST: ACTUALIZAR METACAMPOS (Inserts Reales) ---
+    /**
+     * OPERACIÓN POST: ACTUALIZACIÓN MASIVA (Write)
+     * Implementamos MetafieldsSet para una mutación atómica y segura.
+     */
     if (req.method === 'POST') {
+      if (!stocks) return res.status(400).json({ ok: false, error: 'No se enviaron datos de inventario' });
+
       const mutations = Object.keys(MAPPING).map(key => {
         if (!(key in stocks)) return null;
         return {
@@ -101,7 +120,7 @@ export default async function handler(req, res) {
           namespace: 'custom',
           key: MAPPING[key],
           type: 'number_integer',
-          value: String(stocks[key])
+          value: String(stocks[key]) // Shopify requiere que el número viaje como String
         };
       }).filter(Boolean);
 
@@ -111,17 +130,25 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           query: `mutation($mf:[MetafieldsSetInput!]!){ 
             metafieldsSet(metafields:$mf){ 
-              userErrors{message} 
+              userErrors{ field message } 
             } 
           }`,
           variables: { mf: mutations }
         })
       });
+      
+      const saveData = await saveRes.json();
+      const userErrors = saveData?.data?.metafieldsSet?.userErrors;
+      
+      if (userErrors && userErrors.length > 0) {
+        return res.status(400).json({ ok: false, error: userErrors[0].message });
+      }
+
       return res.json({ ok: true });
     }
 
   } catch (err) {
-    console.error('Error en /api/metafield:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error('CRITICAL ERROR:', err);
+    return res.status(500).json({ ok: false, error: 'Error interno en el servidor' });
   }
 }
