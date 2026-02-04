@@ -3,20 +3,19 @@ export default async function handler(req, res) {
   const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
   const VERSION = '2024-07';
 
-  // --- Configuración de CORS para permitir la comunicación con el index.html ---
+  // --- Configuración de CORS ---
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // Extraemos handle o sku de la petición
     const { handle, sku, stocks } = req.method === 'POST' ? req.body : req.query;
     let productId = null;
     let activeHandle = handle;
 
     // 1. RESOLUCIÓN DE IDENTIDAD (Discovery Mode)
-    // Si el usuario ingresa un SKU que no está en el catálogo, lo buscamos en Shopify
+    // Si el SKU no está en el CSV, lo buscamos directo en Shopify
     if (sku && !handle) {
       const searchRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
@@ -39,7 +38,7 @@ export default async function handler(req, res) {
       activeHandle = found.handle;
     }
 
-    // 2. OBTENER PRODUCT ID POR HANDLE (Si ya conocemos el handle)
+    // 2. OBTENER PRODUCT ID POR HANDLE
     if (!productId && activeHandle) {
       const productRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
@@ -56,8 +55,9 @@ export default async function handler(req, res) {
     if (!productId) return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
 
     // 3. MAPEO MAESTRO DE METACAMPOS (9 Sucursales + WEB)
+    // Mapeamos 'web' al campo custom.stock_por_sucursal según el formato solicitado
     const MAPPING = {
-      'web': 'stock_por_sucursal', // Campo para inventario online
+      'web': 'stock_por_sucursal',
       'stock_centro': 'stock_centro',
       'suc_coyoacan': 'suc_coyoacan',
       'suc_benito_juarez': 'suc_benito_juarez',
@@ -72,7 +72,6 @@ export default async function handler(req, res) {
     // --- GET: OBTENER TODOS LOS STOCKS ACTUALES ---
     if (req.method === 'GET') {
       const keys = Object.keys(MAPPING);
-      // Usamos Aliases de GraphQL para traer 10 metafields en un solo request
       const mfRes = await fetch(`https://${SHOPIFY_HOST}/admin/api/${VERSION}/graphql.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
