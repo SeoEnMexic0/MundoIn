@@ -9,11 +9,12 @@
 :root{ --brand:#184E56; --excel-green:#107c41; --border:#d1d5db; --header-bg:#f3f4f6; --selection:#e7f3f0; }
 body{ font-family:'Segoe UI',Tahoma,sans-serif; margin:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
 nav{ background:var(--brand); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; color:#fff; }
-.search-excel{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:6px; padding:8px 15px; width:400px; color:#fff; outline:none; }
+.search-excel{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:6px; padding:8px 15px; width:350px; color:#fff; outline:none; }
 .toolbar{ background:#fff; padding:8px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:15px; font-size:13px; }
 .btn-tool{ display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 12px; border-radius:4px; font-weight:600; border:1px solid #e5e7eb; transition:0.2s; }
 .btn-tool:hover{ background:#f3f4f6; }
 .btn-save{ color:var(--excel-green); border-color:#d1fae5; }
+.btn-import{ color:var(--brand); border-color:#d1d5db; }
 .btn-export{ color:#2563eb; border-color:#dbeafe; }
 .grid-container{ flex:1; overflow:auto; background:#f8fafc; }
 table{ border-collapse:collapse; width:max-content; min-width:100%; background:#fff; }
@@ -27,6 +28,7 @@ td{ border:1px solid var(--border); padding:0; }
 tr:hover td{ background:var(--selection) !important; }
 footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
 .toast{ position:fixed; bottom:30px; right:30px; background:#1f2937; color:#fff; padding:12px 20px; border-radius:8px; display:none; align-items:center; gap:10px; z-index:100; }
+input[type="file"] { display: none; }
 </style>
 </head>
 <body>
@@ -34,20 +36,24 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px
 <nav>
   <div class="logo-area">
     <img src="https://cdn.shopify.com/s/files/1/1233/2374/files/Frame_2_1.png" width="110">
-    <span style="opacity:.8; font-size:12px; margin-left:10px;">PRO EDITOR v3.0</span>
+    <span style="opacity:.8; font-size:12px; margin-left:10px;">PRO EDITOR v4.0</span>
   </div>
-  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y presiona ENTER para cargar...">
+  <input id="masterSearch" class="search-excel" placeholder="🔍 Escribe SKU y ENTER para añadir uno solo...">
   <div><i class="ph-bold ph-user-circle" style="font-size:22px"></i></div>
 </nav>
 
 <div class="toolbar">
+  <label class="btn-tool btn-import">
+    <i class="ph-bold ph-file-csv"></i> Importar CSV
+    <input type="file" id="csvInput" accept=".csv">
+  </label>
   <div class="btn-tool btn-save" onclick="guardarTodo()">
     <i class="ph-fill ph-floppy-disk"></i> Guardar en Shopify
   </div>
   <div class="btn-tool btn-export" onclick="exportarCSV()">
-    <i class="ph-bold ph-download-simple"></i> Exportar CSV
+    <i class="ph-bold ph-download-simple"></i> Exportar
   </div>
-  <div id="loadingStatus" style="margin-left:auto; color:#6b7280;">● Conectado</div>
+  <div id="loadingStatus" style="margin-left:auto; color:#6b7280;">● Listo</div>
 </div>
 
 <div class="grid-container">
@@ -72,8 +78,8 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px
 </div>
 
 <footer>
-  <div id="rowCount">Filas: 0</div>
-  <div>Mundo In © 2026 | Sistema de Inventario Real-Time</div>
+  <div id="rowCount">Productos: 0</div>
+  <div>Mundo In © 2026 | Sistema de Carga Masiva</div>
 </footer>
 
 <div id="toast" class="toast"><i class="ph ph-check-circle" style="color:#22c55e"></i><span>¡Sincronizado!</span></div>
@@ -82,33 +88,50 @@ footer{ background:#f3f4f6; border-top:1px solid var(--border); padding:6px 20px
 let CATALOGO_LOCAL = {}; 
 const SUCURSALES = ['web','stock_centro','suc_coyoacan','suc_benito_juarez','suc_gustavo_baz','suc_naucalpan','suc_toluca','suc_queretaro','suc_vallejo','suc_puebla'];
 
-// Cargar catálogo inicial (CSV)
-async function init() {
-  try {
-    const res = await fetch('catalogo.csv');
-    const text = await res.text();
-    text.split('\n').slice(1).forEach(l => {
-      const c = l.split(',');
-      if(c[1]) CATALOGO_LOCAL[c[1].trim().toUpperCase()] = c[0].trim();
-    });
-  } catch(e) { console.log("Modo búsqueda directa activo"); }
-  
-  // Prueba inicial
-  buscarYAgregar("RECA0904851");
-}
+// 1. MANEJADOR DE IMPORTACIÓN DE CSV
+document.getElementById('csvInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
 
-// BUSQUEDA REAL-TIME
+  const reader = new FileReader();
+  reader.onload = async function(event) {
+    const text = event.target.result;
+    const filas = text.split('\n').slice(1); // Quitamos encabezado
+    
+    document.getElementById('loadingStatus').innerText = "⏳ Importando datos...";
+    document.getElementById('tablaCuerpo').innerHTML = ""; // Limpiamos tabla para la nueva carga
+
+    for (let f of filas) {
+      const c = f.split(',');
+      if (c.length < 2) continue;
+
+      const handle = c[0].trim();
+      const sku = c[1].trim().toUpperCase();
+      
+      // Mapeamos stocks del CSV: WEB está en columna 2, sucursales siguen
+      const stocks = {};
+      SUCURSALES.forEach((key, index) => {
+        stocks[key] = c[index + 2] ? c[index + 2].trim() : 0;
+      });
+
+      CATALOGO_LOCAL[sku] = handle;
+      renderRow(sku, handle, stocks);
+    }
+    document.getElementById('loadingStatus').innerText = "● CSV Cargado";
+    actualizarContador();
+  };
+  reader.readAsText(file);
+});
+
+// 2. BUSQUEDA / ADICIÓN INDIVIDUAL
 document.getElementById('masterSearch').addEventListener('keypress', e => {
   if (e.key === 'Enter') buscarYAgregar(e.target.value.trim().toUpperCase());
 });
 
 async function buscarYAgregar(sku) {
-  if(!sku) return;
-  if(document.getElementById(`row-${sku}`)) return;
+  if(!sku || document.getElementById(`row-${sku}`)) return;
 
-  const status = document.getElementById('loadingStatus');
-  status.innerText = "⏳ Buscando " + sku + "...";
-
+  document.getElementById('loadingStatus').innerText = "🔍 Buscando " + sku + "...";
   const handle = CATALOGO_LOCAL[sku];
   const query = handle ? `handle=${handle}` : `sku=${sku}`;
 
@@ -118,12 +141,11 @@ async function buscarYAgregar(sku) {
     if(data.ok) {
       renderRow(sku, data.handle, data.stocks);
       document.getElementById('masterSearch').value = "";
-      status.innerText = "● Conectado";
+      document.getElementById('loadingStatus').innerText = "● Conectado";
     } else {
-      alert("No se encontró el producto en Shopify");
-      status.innerText = "● Error";
+      alert("SKU no encontrado");
     }
-  } catch(err) { status.innerText = "● Error de red"; }
+  } catch(err) { console.error(err); }
 }
 
 function renderRow(sku, handle, stocks) {
@@ -142,10 +164,13 @@ function renderRow(sku, handle, stocks) {
 
 async function guardarTodo() {
   const filas = document.querySelectorAll('#tablaCuerpo tr');
-  document.getElementById('loadingStatus').innerText = "⏳ Guardando...";
+  if (filas.length === 0) return;
+
+  document.getElementById('loadingStatus').innerText = "⏳ Sincronizando Shopify...";
   for(let row of filas) {
     const stocks = {};
     row.querySelectorAll('[data-key]').forEach(i => stocks[i.dataset.key] = Number(i.value));
+    
     await fetch('/api/metafield', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -156,7 +181,6 @@ async function guardarTodo() {
   showToast();
 }
 
-// FUNCIÓN DE EXPORTACIÓN CSV
 function exportarCSV() {
   let csv = "Handle,SKU,WEB,Centro,Coyoacan,Benito_Juarez,Gustavo_Baz,Naucalpan,Toluca,Queretaro,Vallejo,Puebla\n";
   document.querySelectorAll('#tablaCuerpo tr').forEach(row => {
@@ -169,14 +193,12 @@ function exportarCSV() {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.setAttribute('href', url);
-  a.setAttribute('download', `inventario_mundo_in_${new Date().toLocaleDateString()}.csv`);
+  a.setAttribute('download', `inventario_${new Date().toLocaleTimeString()}.csv`);
   a.click();
 }
 
-function actualizarContador() { document.getElementById('rowCount').innerText = "Filas: " + document.querySelectorAll('#tablaCuerpo tr').length; }
+function actualizarContador() { document.getElementById('rowCount').innerText = "Productos: " + document.querySelectorAll('#tablaCuerpo tr').length; }
 function showToast() { const t = document.getElementById('toast'); t.style.display = 'flex'; setTimeout(() => t.style.display = 'none', 3000); }
-
-window.onload = init;
 </script>
 </body>
 </html>
